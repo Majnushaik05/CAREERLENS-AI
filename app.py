@@ -443,7 +443,7 @@ st.markdown(
       transform: translateY(-1px) !important;
     }
 
-    /* PURE WHITE CLEAN SIDEBAR (No dark/teal styles) */
+    /* PURE WHITE CLEAN SIDEBAR */
     [data-testid="stSidebar"], section[data-testid="stSidebar"], section[data-testid="stSidebar"] > div {
       background: #ffffff !important;
       background-color: #ffffff !important;
