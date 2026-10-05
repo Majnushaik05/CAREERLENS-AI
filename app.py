@@ -47,7 +47,7 @@ ADMIN_PIN = os.getenv("ADMIN_PIN", "")
 PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "https://career-lens-ai.streamlit.app").rstrip("/")
 
 st.set_page_config(
-    page_title="CareerLens AI - Smart Career & Recruiter Intelligence",
+    page_title="CareerLens:- Smart Career & Recruiter Intelligence",
     page_icon=":material/work:",
     layout="wide",
     initial_sidebar_state="expanded",
