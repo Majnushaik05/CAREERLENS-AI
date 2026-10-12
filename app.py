@@ -47,7 +47,7 @@ ADMIN_PIN = os.getenv("ADMIN_PIN", "")
 PUBLIC_APP_URL = os.getenv("PUBLIC_APP_URL", "https://career-lens-ai.streamlit.app").rstrip("/")
 
 st.set_page_config(
-    page_title="CareerLens AI - Smart Career & Recruiter Intelligence",
+    page_title="CareerLens AI | Career Intelligence Platform",
     page_icon=":material/work:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -505,24 +505,51 @@ st.markdown(
       -webkit-text-fill-color: var(--primary-blue) !important;
     }
 
-    /* CLEAN MODERN HERO */
+    /* Cohesive premium polish across all app screens */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; border-bottom: 1px solid #e2e8f0; }
+    .stTabs [data-baseweb="tab"] { border-radius: 10px 10px 0 0; padding: 10px 14px; font-weight: 750; }
+    [data-testid="stMetric"] { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:16px 18px; box-shadow:0 5px 18px rgba(15,23,42,.04); }
+    [data-testid="stExpander"] { border:1px solid #e2e8f0 !important; border-radius:14px !important; background:rgba(255,255,255,.85) !important; }
+    [data-testid="stDataFrame"], [data-testid="stTable"] { border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+    [data-testid="stAlert"] { border-radius:13px !important; }
+    .stProgress > div > div > div > div { background:linear-gradient(90deg,#2563eb,#6366f1,#8b5cf6) !important; }
+    .cl-hero-proof { display:flex; align-items:center; gap:10px; margin-top:22px; color:#dbeafe; font-size:.8rem; line-height:1.55; }
+    .cl-hero-proof strong { color:#fff; font-size:.85rem; }
+    .cl-hero-proof-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#34d399; box-shadow:0 0 0 5px rgba(52,211,153,.13); }
+    @media (max-width: 760px) {
+      .cl-hero { padding:26px 20px; border-radius:20px; }
+      .cl-hero-title-rotator { height:auto; min-height:5.2rem; }
+      .cl-hero-title-rotator .cl-hero-line { font-size:clamp(1.55rem,7vw,2.2rem); line-height:1.12; }
+      .cl-hero-copy { font-size:.93rem; }
+      .cl-hero-chip { font-size:.72rem; padding:7px 10px; }
+      .landing-access { padding:18px 14px; }
+    }
+
+    /* PREMIUM IMAGE-BACKED LANDING HERO */
     .cl-hero {
       position: relative;
+      isolation: isolate;
       overflow: hidden;
-      padding: 42px 38px 36px;
-      border: 1px solid #e2e8f0;
-      border-radius: 20px;
-      background: #ffffff;
-      box-shadow: var(--shadow-sm);
-      margin-bottom: 22px;
+      padding: clamp(28px, 4.5vw, 58px) clamp(20px, 4vw, 48px);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 26px;
+      background: linear-gradient(100deg, rgba(8,18,48,.97) 0%, rgba(16,40,89,.94) 48%, rgba(37,99,235,.58) 100%), url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=85') center/cover;
+      box-shadow: 0 24px 60px rgba(15,23,42,.18);
+      margin-bottom: 24px;
+      color: #fff;
     }
+    .cl-hero:before { content:''; position:absolute; z-index:-1; width:360px; height:360px; right:5%; top:-175px; border:1px solid rgba(255,255,255,.24); border-radius:50%; box-shadow:0 0 0 32px rgba(255,255,255,.045),0 0 0 70px rgba(255,255,255,.035); }
+    .cl-hero:after { content:''; position:absolute; z-index:-1; width:220px; height:220px; right:24%; bottom:-170px; border-radius:50%; background:rgba(56,189,248,.18); filter:blur(2px); }
     .cl-hero-kicker {
-      font-size: 0.74rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      color: var(--primary-blue);
-      margin-bottom: 12px;
+      display:inline-flex; align-items:center; gap:8px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      color: #bfdbfe;
+      margin-bottom: 18px;
       text-transform: uppercase;
+      padding: 8px 12px; border-radius:999px;
+      background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.19);
     }
 
     /* 5-LINE HERO TEXT ROTATOR */
@@ -544,8 +571,10 @@ st.markdown(
       letter-spacing: -0.04em;
       font-size: clamp(1.8rem, 4.2vw, 3.2rem);
       font-weight: 900;
-      color: #0f172a;
-      white-space: nowrap;
+      color: #ffffff;
+      white-space: normal;
+      max-width: 900px;
+      text-shadow: 0 2px 20px rgba(0,0,0,.16);
     }
     .cl-hero-title-rotator .cl-hero-line:nth-child(1) { animation-delay: 0s; }
     .cl-hero-title-rotator .cl-hero-line:nth-child(2) { animation-delay: 3s; }
@@ -561,9 +590,9 @@ st.markdown(
 
     .cl-hero-copy {
       max-width: 760px;
-      color: #475569;
-      font-size: 1rem;
-      line-height: 1.65;
+      color: #e2e8f0;
+      font-size: clamp(.94rem, 1.5vw, 1.06rem);
+      line-height: 1.75;
       margin-bottom: 24px;
     }
 
@@ -578,16 +607,17 @@ st.markdown(
       align-items: center;
       gap: 8px;
       padding: 8px 14px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid rgba(255,255,255,.22);
       border-radius: 999px;
-      background: #ffffff;
-      color: #334155;
+      background: rgba(255,255,255,.10);
+      color: #f8fafc;
       font-size: 0.78rem;
       font-weight: 700;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(10px);
     }
     .cl-hero-chip .material-symbols-outlined {
-      color: var(--primary-blue);
+      color: #93c5fd;
       font-size: 1.1rem;
     }
 
@@ -2647,6 +2677,7 @@ if not st.session_state.is_logged_in:
         <span class="cl-hero-chip"><span class="material-symbols-outlined">record_voice_over</span>Interview Practice</span>
         <span class="cl-hero-chip"><span class="material-symbols-outlined">groups</span>Recruiter Intelligence</span>
       </div>
+      <div class="cl-hero-proof"><span class="cl-hero-proof-dot"></span><span><strong>One connected workspace</strong><br/>From first resume scan to interview preparation and hiring insights.</span></div>
     </div>
     """, unsafe_allow_html=True)
 
