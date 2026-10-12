@@ -2965,6 +2965,106 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
+# ============================================================
+# CAREERLENS PREMIUM UI SYSTEM — CROSS-SCREEN POLISH
+# Styling-only layer: keeps existing page routing and business logic intact.
+# ============================================================
+st.markdown(r"""
+<style>
+:root {
+  --cl-ink: #0b1530;
+  --cl-muted: #64748b;
+  --cl-line: #e3eaf5;
+  --cl-blue: #315eea;
+  --cl-indigo: #6254e8;
+  --cl-surface: #ffffff;
+  --cl-shadow: 0 12px 32px rgba(20, 39, 85, .065);
+}
+
+/* Page rhythm and hierarchy */
+[data-testid="stAppViewContainer"] { background: linear-gradient(180deg,#f8faff 0%,#f6f8fc 54%,#f9fbff 100%) !important; }
+[data-testid="stMainBlockContainer"] { padding-top: clamp(1rem,2.2vw,2rem) !important; }
+[data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] { scroll-margin-top: 1rem; }
+.stMarkdown h1 { font-size: clamp(1.8rem,3.3vw,2.65rem) !important; line-height: 1.12 !important; font-weight: 900 !important; }
+.stMarkdown h2 { font-size: clamp(1.45rem,2.6vw,2rem) !important; font-weight: 850 !important; }
+.stMarkdown h3 { font-size: clamp(1.08rem,1.8vw,1.35rem) !important; font-weight: 820 !important; }
+[data-testid="stCaptionContainer"] { color: #64748b !important; }
+
+/* Universal content surfaces used throughout candidate and recruiter screens */
+.content-box, .gateway-card, .tool-box-card, .landing-feature, .kpi-card,
+[data-testid="stForm"], [data-testid="stFileUploaderDropzone"],
+[data-testid="stExpander"], [data-testid="stMetric"] {
+  border-color: var(--cl-line) !important;
+  box-shadow: var(--cl-shadow) !important;
+}
+.content-box { border-radius: 18px !important; background: rgba(255,255,255,.96) !important; }
+.gateway-card { border-radius: 22px !important; padding: clamp(18px,2.5vw,28px) !important; background: #fff !important; transition: transform .2s ease, box-shadow .2s ease; }
+.gateway-card:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(20,39,85,.10) !important; }
+.tool-box-card { min-height: 170px; border-radius: 18px !important; padding: 18px !important; background: linear-gradient(145deg,#fff 0%,#fbfcff 100%) !important; border: 1px solid var(--cl-line) !important; box-shadow: 0 8px 22px rgba(20,39,85,.045) !important; }
+.tool-title { font-size: .98rem !important; font-weight: 850 !important; color: #101b36 !important; letter-spacing: -.015em; }
+.tool-desc { color: #65728b !important; font-size: .82rem !important; line-height: 1.55 !important; }
+.kpi-card { border-radius: 18px !important; padding: 17px !important; background: linear-gradient(145deg,#fff 0%,#fafdff 100%) !important; }
+.landing-feature { border-radius: 18px !important; padding: 20px !important; border: 1px solid var(--cl-line) !important; background: rgba(255,255,255,.94) !important; }
+
+/* Header / navigation */
+.cl-app-header { border: 1px solid #e2eaf7 !important; border-radius: 18px !important; background: rgba(255,255,255,.94) !important; box-shadow: 0 8px 24px rgba(20,39,85,.045) !important; padding: 16px 20px !important; }
+.cl-app-header-title { font-weight: 950 !important; letter-spacing: -.04em !important; }
+.cl-status-pill { border: 1px solid #b7f0d5 !important; background: #ecfdf5 !important; color: #047857 !important; border-radius: 999px !important; padding: 7px 11px !important; font-weight: 800 !important; white-space: nowrap; }
+.sidebar-brand-box { border-radius: 14px !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label { font-weight: 650 !important; }
+
+/* Inputs, selectors, uploaders and form spacing */
+[data-testid="stTextInput"], [data-testid="stTextArea"], [data-testid="stSelectbox"],
+[data-testid="stMultiSelect"], [data-testid="stDateInput"], [data-testid="stTimeInput"],
+[data-testid="stNumberInput"], [data-testid="stFileUploader"] { margin-bottom: .35rem; }
+[data-testid="stForm"] { padding: clamp(14px,2vw,22px) !important; border-radius: 18px !important; background: rgba(255,255,255,.88) !important; }
+[data-testid="stFileUploaderDropzone"] { background: linear-gradient(135deg,#fbfdff,#f3f7ff) !important; border: 1.5px dashed #b8c8e5 !important; border-radius: 16px !important; }
+[data-baseweb="select"] > div { min-height: 42px !important; }
+.stTextInput input, .stTextArea textarea { transition: border-color .16s ease, box-shadow .16s ease; }
+
+/* Buttons with accessible keyboard focus */
+.stButton > button, .stDownloadButton > button, .stFormSubmitButton > button { letter-spacing: -.005em; }
+.stButton > button:focus-visible, .stDownloadButton > button:focus-visible,
+.stFormSubmitButton > button:focus-visible, a:focus-visible { outline: 3px solid rgba(49,94,234,.4) !important; outline-offset: 3px !important; }
+.stButton > button[kind="primary"] { background: linear-gradient(105deg,#315eea,#554ee8) !important; border: 1px solid #315eea !important; }
+
+/* Tables and assessment result surfaces */
+[data-testid="stDataFrame"], [data-testid="stTable"] { border-radius: 15px !important; border: 1px solid var(--cl-line) !important; box-shadow: 0 5px 18px rgba(20,39,85,.035) !important; }
+[data-testid="stAlert"] { border: 1px solid rgba(148,163,184,.24) !important; box-shadow: 0 4px 14px rgba(20,39,85,.025) !important; }
+[data-testid="stProgress"] { padding: 2px 0; }
+.stTabs [data-baseweb="tab"] { transition: background .15s ease, color .15s ease; }
+.stTabs [aria-selected="true"] { color: #315eea !important; }
+
+/* Image-backed landing page: protect text contrast and scale gracefully */
+.cl-hero { min-height: 330px; background-position: center !important; }
+.cl-hero-title-rotator { max-width: 850px; }
+.cl-hero-copy { max-width: 780px; }
+.cl-hero-chip { backdrop-filter: blur(8px); }
+.landing-access { margin-top: 24px !important; }
+
+/* Mobile layout: avoid cramped cards, clipped headings, or oversized padding */
+@media (max-width: 900px) {
+  .tool-box-card { min-height: 150px; }
+  .cl-app-header { align-items: flex-start !important; gap: 10px !important; }
+}
+@media (max-width: 640px) {
+  .block-container { padding-left: 12px !important; padding-right: 12px !important; }
+  .cl-app-header { flex-direction: column !important; padding: 14px !important; }
+  .cl-status-pill { font-size: .72rem !important; }
+  .cl-hero { min-height: auto !important; padding: 25px 18px !important; }
+  .cl-hero-title-rotator { font-size: clamp(1.7rem,8vw,2.35rem) !important; }
+  .cl-hero-stats { gap: 6px !important; }
+  .cl-hero-chip { font-size: .7rem !important; padding: 6px 8px !important; }
+  .content-box, .gateway-card, .tool-box-card, .landing-feature { border-radius: 15px !important; }
+  [data-testid="stMetric"] { padding: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ============================================================
 # JOB SEEKER DASHBOARD
 # ============================================================
