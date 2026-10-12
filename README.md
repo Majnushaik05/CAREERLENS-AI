@@ -2,30 +2,49 @@
 
 CareerLens AI is an end-to-end platform featuring AI-powered fake job detection, resume scoring, semantic job matching, skill gap analysis, and automated candidate ranking.
 
-🔗 **Live App:** [https://career-lens-ai.streamlit.app](https://career-lens-ai.streamlit.app).
-CareerLens AI — Premium UI Final Package
+## Architecture
 
-This package applies a cohesive premium visual treatment to the existing CareerLens AI Streamlit application while preserving the current application flow and API implementation.
+Migrated to a full-stack Node.js 22 runtime:
+- **Frontend**: React 19 SPA with Tailwind CSS and Vite
+- **Backend**: Express server (`server.ts`) exposing complete CareerLens intelligence API routes
+- **AI Integration**: Gemini API (`@google/genai`) for conversational career consulting and executive resume coaching
+- **Port**: Runs on port 3000 (`0.0.0.0`)
 
-Package contents
+## Development & Production
 
-app.py — existing Streamlit application with premium image-backed landing hero, responsive typography and spacing, refined metric cards, tabs, tables, alerts, expanders, and progress styling.
+```bash
+# Install dependencies
+npm install
 
-api.py — existing FastAPI backend copied unchanged from the latest accessible project version.
+# Start development server (serves frontend & backend on port 3000)
+npm run dev
 
-requirements.txt — Python dependencies for the frontend and API.
+# Build production bundle
+npm run build
 
-Run the Streamlit frontend
+# Start production server
+npm start
+```
 
-pip install -r requirements.txt
-streamlit run app.py
+## Features
 
-Run the FastAPI backend
+### Job Seeker Suite
+- **Dashboard**: Career overview, resume health score, readiness metrics
+- **Resume Intelligence**: Deep ATS section structure analysis, quantified accomplishment detection, skill discovery, and actionable recommendations
+- **Pre-Interview Assessment**: Timed technical & domain qualifying tests with immediate scoring
+- **AI Mock Interview**: Interactive conversational simulations tailored to candidate background and target company
+- **AI Job Match**: Semantic job match comparison against live requisitions
+- **Salary Estimation**: Seniority and domain benchmark calculator
+- **Career Roadmap**: 5-phase career progression and skill gap bridging milestones
+- **Real-Time Job Detection**: Risk analyzer identifying recruitment scam indicators
+- **Resume Builder**: Interactive ATS resume builder with instant text export
+- **AI Career Assistant**: Conversational guidance on interviews, salaries, and career strategy
 
-uvicorn api:app --host 0.0.0.0 --port 8000
-
-The frontend uses API_URL for its backend endpoint; set it to the deployed API base URL if it differs from the configured default. The landing hero includes remote Unsplash photography over HTTPS; internet access is required to display those external images. Other app functionality continues to use the existing code paths.
-
-Validation notes
-
-Both Python files are syntax-compiled before packaging. This environment does not have Streamlit installed, so a live browser render and end-to-end workflow test must still be completed in the deployment environment. This package does not claim those runtime tests have passed.
+### Recruiter Suite
+- **Recruiter Dashboard**: Campaign metrics, applicant counts, and funnel status
+- **Hiring Campaign**: Requisition builder, criteria thresholds, and passing score configuration
+- **Bulk Resume Screening**: Automated cohort ranking against campaign descriptions
+- **Shortlisted Candidates**: Talent pool management and candidate profiling
+- **Assessment Dispatcher**: Randomized exam link generator with secure tokens
+- **Score Vault**: Auditable candidate test results and metrics
+- **Interview Pipeline**: Kanban funnel tracking candidate hiring stages

@@ -1,0 +1,6 @@
+{
+  "name": "CareerLens AI",
+  "description": "AI-powered career intelligence, resume scoring, job matching, roadmaps, interview prep, and recruiter talent platform.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

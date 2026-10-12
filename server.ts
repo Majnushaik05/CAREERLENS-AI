@@ -1,0 +1,777 @@
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { GoogleGenAI } from '@google/genai';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const HOST = '0.0.0.0';
+
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Initialize Gemini SDK if available
+let aiClient: GoogleGenAI | null = null;
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+if (geminiApiKey) {
+  try {
+    aiClient = new GoogleGenAI({ apiKey: geminiApiKey });
+  } catch (err) {
+    console.warn('[CareerLens] Could not initialize Gemini SDK:', err);
+  }
+}
+
+// ============================================================
+// SKILLS & ROLE DATA FROM CAREERLENS AI (api.py / app.py)
+// ============================================================
+const SKILLS: string[] = [
+  'python', 'java', 'javascript', 'typescript', 'react', 'node.js', 'fastapi',
+  'django', 'flask', 'sql', 'postgresql', 'mysql', 'mongodb', 'docker',
+  'kubernetes', 'aws', 'azure', 'gcp', 'git', 'linux', 'machine learning',
+  'deep learning', 'pandas', 'numpy', 'scikit-learn', 'tensorflow', 'pytorch',
+  'rest api', 'graphql', 'redis', 'kafka', 'system design', 'html', 'css',
+  'figma', 'excel', 'power bi', 'tableau', 'cybersecurity', 'testing', 'selenium',
+  'communication', 'leadership', 'problem solving', 'data analysis', 'statistics',
+  'ci/cd', 'devops', 'next.js', 'express', 'c++', 'c#', 'go', 'rust'
+];
+
+const ROLE_SKILL_HINTS: Record<string, string[]> = {
+  ai: ['python', 'machine learning', 'deep learning', 'pytorch', 'tensorflow', 'statistics', 'sql'],
+  'machine learning': ['python', 'machine learning', 'statistics', 'pandas', 'numpy', 'scikit-learn'],
+  'data scientist': ['python', 'statistics', 'sql', 'pandas', 'numpy', 'machine learning'],
+  'data analyst': ['sql', 'excel', 'power bi', 'tableau', 'statistics', 'data analysis'],
+  software: ['python', 'java', 'javascript', 'git', 'sql', 'rest api', 'testing'],
+  developer: ['python', 'git', 'sql', 'testing', 'rest api', 'javascript'],
+  devops: ['linux', 'docker', 'kubernetes', 'aws', 'git', 'ci/cd'],
+  cloud: ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'linux'],
+  cyber: ['cybersecurity', 'linux', 'networking', 'python'],
+  qa: ['testing', 'selenium', 'automation', 'api testing', 'git'],
+  hr: ['recruitment', 'employee relations', 'communication', 'hr analytics'],
+  marketing: ['digital marketing', 'seo', 'content marketing', 'analytics', 'communication'],
+  sales: ['sales', 'negotiation', 'communication', 'crm', 'lead generation'],
+  finance: ['excel', 'financial analysis', 'accounting', 'forecasting', 'communication'],
+  account: ['accounting', 'excel', 'financial analysis', 'tax', 'audit'],
+  'project manager': ['project management', 'stakeholder management', 'communication', 'agile', 'risk management'],
+  'product manager': ['product management', 'roadmapping', 'user research', 'analytics', 'stakeholder management'],
+};
+
+const RISK_PATTERNS: Record<string, string> = {
+  'wire transfer': 'Requests for wire transfers or direct money movement.',
+  'registration fee': 'Upfront registration or application fees.',
+  'processing fee': 'Upfront processing fees.',
+  'telegram': 'Telegram-only recruitment communication.',
+  'whatsapp': 'WhatsApp-only recruitment communication.',
+  'crypto': 'Cryptocurrency payment/request.',
+  'gift card': 'Gift-card payment request.',
+  'no interview': 'No-interview hiring claim.',
+  'pay to apply': 'Payment required to apply.',
+  'urgent payment': 'Urgent payment pressure.',
+  'security deposit': 'Demanding an upfront security deposit for equipment.',
+};
+
+function getSkillSet(text: string): string[] {
+  const lower = (text || '').toLowerCase();
+  return SKILLS.filter(skill => lower.includes(skill));
+}
+
+function getRoleHints(role: string): string[] {
+  const roleLower = (role || '').toLowerCase();
+  const result: string[] = [];
+  for (const [key, values] of Object.entries(ROLE_SKILL_HINTS)) {
+    if (roleLower.includes(key)) {
+      result.push(...values);
+    }
+  }
+  return Array.from(new Set(result));
+}
+
+function extractEmail(text: string): string {
+  const re = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
+  const match = (text || '').match(re);
+  return match ? match[0].toLowerCase() : '';
+}
+
+function extractPhone(text: string): string {
+  const re = /(?:\+?\d[\d .()\-]{8,}\d)/;
+  const match = (text || '').match(re);
+  return match ? match[0].trim() : '';
+}
+
+function extractName(text: string, filename = 'Candidate'): string {
+  const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines.slice(0, 12)) {
+    if (line.includes('@') || /(?:\+?\d[\d .()\-]{8,}\d)/.test(line)) continue;
+    if (line.length > 70) continue;
+    const lower = line.toLowerCase();
+    if (['resume', 'curriculum vitae', 'objective', 'summary', 'skills'].some(t => lower.includes(t))) continue;
+    const words = line.split(/\s+/);
+    if (words.length >= 2 && words.length <= 5 && words.every(w => /^[A-Za-z.'-]+$/.test(w))) {
+      return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+  const stem = (filename || 'Candidate').replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+  return stem ? stem.charAt(0).toUpperCase() + stem.slice(1) : 'Candidate';
+}
+
+function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
+  const cleanText = (text || '').trim();
+  const lower = cleanText.toLowerCase();
+  const words = cleanText.match(/\b[a-zA-Z]{2,}\b/g) || [];
+  const skills = Array.from(new Set(getSkillSet(cleanText))).sort();
+
+  const sectionNames: Record<string, string[]> = {
+    summary: ['summary', 'professional summary', 'profile', 'objective', 'about me'],
+    experience: ['experience', 'work experience', 'professional experience', 'employment', 'work history'],
+    education: ['education', 'academic background', 'academics', 'qualifications'],
+    projects: ['projects', 'personal projects', 'academic projects', 'key projects'],
+    skills: ['skills', 'technical skills', 'core skills', 'technologies'],
+    certifications: ['certifications', 'certificates', 'licenses'],
+    achievements: ['achievements', 'accomplishments', 'awards', 'honors'],
+  };
+
+  const lines = cleanText.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean);
+  const foundSections = new Set<string>();
+  for (const [sec, variants] of Object.entries(sectionNames)) {
+    if (lines.some(line => variants.some(v => line === v || line.startsWith(v + ':') || line.startsWith(v + ' -')))) {
+      foundSections.add(sec);
+    }
+  }
+
+  const quantifiedMatches = lower.match(/(?:\b\d+%|\b\d+[+]?(?:\s*years?|\s*users?|\s*clients?)|\b(?:increased|reduced|improved|saved|grew|generated)\b[^.]{0,60}\b\d+)/g) || [];
+  const actionVerbsMatches = lower.match(/\b(led|built|developed|designed|implemented|improved|optimized|automated|created|managed|analyzed|delivered|launched|reduced|increased|deployed|tested|trained)\b/g) || [];
+  const bulletsMatches = cleanText.match(/(?:^|\n)\s*[•▪●*-]\s+/g) || [];
+
+  const email = extractEmail(cleanText);
+  const phone = extractPhone(cleanText);
+
+  const contentScore = Math.min(100, 25 + (Math.min(words.length, 700) / 700) * 45 + (Math.min(bulletsMatches.length, 18) / 18) * 15 + (Math.min(actionVerbsMatches.length, 12) / 12) * 15);
+  const sectionScore = (foundSections.size / 7) * 100;
+  const skillScore = Math.min(100, (skills.length / 12) * 100);
+  const achievementScore = Math.min(100, (quantifiedMatches.length / 5) * 70 + (Math.min(actionVerbsMatches.length, 10) / 10) * 30);
+  const contactScore = (email ? 50 : 0) + (phone ? 50 : 0);
+
+  const hints = getRoleHints(targetRole);
+  const roleMatch = hints.length > 0 ? (hints.filter(h => lower.includes(h)).length / hints.length) * 100 : null;
+
+  let totalScore = contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 + achievementScore * 0.15 + contactScore * 0.10 + (roleMatch !== null ? roleMatch * 0.10 : 5);
+  totalScore = Math.round(Math.max(5, Math.min(98, totalScore)));
+
+  const experienceSignals = (lower.match(/\b(experience|intern|internship|employment|work history|years?)\b/g) || []).length;
+  const readiness = Math.round(Math.max(5, Math.min(97, totalScore * 0.55 + Math.min(skills.length, 10) * 3 + Math.min(quantifiedMatches.length, 5) * 2 + Math.min(experienceSignals, 3) * 2)));
+
+  const missingSections = Object.keys(sectionNames).filter(k => !foundSections.has(k)).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+  const missingSkills = hints.filter(h => !lower.includes(h)).slice(0, 8);
+
+  const recommendations: string[] = [];
+  if (missingSections.includes('Experience')) recommendations.push('Add relevant experience, internships, or substantial project work.');
+  if (missingSections.includes('Projects')) recommendations.push('Add 2–3 relevant projects with tools, individual contributions, and measurable outcomes.');
+  if (quantifiedMatches.length < 2) recommendations.push('Include measurable metrics such as percentages (e.g., 25% faster), users, cost savings, or scale.');
+  if (actionVerbsMatches.length < 4) recommendations.push('Use stronger action verbs (e.g. spearheaded, engineered, architected, delivered).');
+  if (!email || !phone) recommendations.push('Ensure complete contact details with professional email and telephone number.');
+  if (skills.length < 6) recommendations.push('Add technical and core competencies substantiated by your projects or experience.');
+  if (targetRole && roleMatch !== null && roleMatch < 50) recommendations.push(`Tailor your resume specifically toward ${targetRole} by highlighting related skills.`);
+  if (recommendations.length === 0) recommendations.push('Maintain clean formatting and tailor your accomplishments for each job application.');
+
+  const strengths: string[] = [];
+  if (skills.length >= 6) strengths.push(`Identified ${skills.length} core technical and functional skills.`);
+  if (foundSections.size >= 5) strengths.push('Well-structured layout with standard professional resume sections.');
+  if (quantifiedMatches.length >= 2) strengths.push('Strong inclusion of quantitative metrics and outcomes.');
+  if (email && phone) strengths.push('Clear and accessible contact details.');
+  if (strengths.length === 0) strengths.push('Resume parsed successfully; adding quantifiable outcomes will quickly elevate your score.');
+
+  return {
+    name: extractName(cleanText, filename),
+    email,
+    phone,
+    experience: experienceSignals > 0 ? 'Experience signals detected' : 'Limited experience detected',
+    resume_score: totalScore,
+    readiness,
+    market_match: roleMatch ? Math.round(roleMatch) : null,
+    skills,
+    missing_skills: missingSkills,
+    strengths,
+    recommendations,
+    score_breakdown: {
+      content_quality: Math.round(contentScore * 10) / 10,
+      section_coverage: Math.round(sectionScore * 10) / 10,
+      skills: Math.round(skillScore * 10) / 10,
+      achievement_evidence: Math.round(achievementScore * 10) / 10,
+      contact_completeness: Math.round(contactScore * 10) / 10,
+      target_role_alignment: roleMatch !== null ? Math.round(roleMatch * 10) / 10 : null,
+    },
+    extracted_text: cleanText,
+    source: 'careerlens-engine-v5',
+    analysis_version: 5,
+    target_role: targetRole,
+  };
+}
+
+function matchJob(resumeText: string, jobDescription: string) {
+  const rText = (resumeText || '').trim();
+  const jText = (jobDescription || '').trim();
+  if (!rText || !jText) {
+    throw new Error('Both resume and job description are required.');
+  }
+
+  const rSkills = new Set(getSkillSet(rText));
+  const jSkills = new Set(getSkillSet(jText));
+
+  const matched = Array.from(rSkills).filter(s => jSkills.has(s)).sort();
+  const missing = Array.from(jSkills).filter(s => !rSkills.has(s)).sort();
+
+  // Basic word frequency overlap
+  const rWords = new Set(rText.toLowerCase().match(/\b[a-z]{3,}\b/g) || []);
+  const jWords = Array.from(new Set(jText.toLowerCase().match(/\b[a-z]{3,}\b/g) || []));
+  const commonWords = jWords.filter(w => rWords.has(w));
+  const lexicalSimilarity = jWords.length > 0 ? (commonWords.length / jWords.length) * 100 : 0;
+
+  const skillScore = jSkills.size > 0 ? (matched.length / jSkills.size) * 100 : lexicalSimilarity;
+  const overall = jSkills.size > 0
+    ? Math.round(Math.max(5, Math.min(99, lexicalSimilarity * 0.45 + skillScore * 0.55)))
+    : Math.round(Math.max(5, Math.min(99, lexicalSimilarity)));
+
+  return {
+    overall,
+    matched,
+    missing,
+    recommended_skills: missing.slice(0, 10),
+    semantic_similarity: Math.round(lexicalSimilarity * 10) / 10,
+    summary: `Matched ${matched.length} explicit skills and identified ${missing.length} skill gap(s).`,
+    experience_alignment: overall >= 75 ? 'Strong Alignment' : overall >= 50 ? 'Moderate Alignment' : 'Needs Improvement',
+    source: 'careerlens-match-v5',
+    analysis_version: 5,
+  };
+}
+
+// In-memory persistent store for assessments & candidates
+const assessmentStore = new Map<string, any>();
+const recruiterStateStore = new Map<string, any>();
+
+// Default assessment questions bank
+function getAssessmentBank(role: string) {
+  const roleL = (role || '').toLowerCase();
+  if (['software', 'developer', 'programmer', 'engineer', 'devops', 'cloud'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'Which practice improves software reliability before release?', options: ['Automated tests and code reviews', 'Skipping validation', 'Hard-coding secrets', 'Ignoring error logs'], answer: 'Automated tests and code reviews', section: 'Quality & Reliability' },
+      { id: 2, question: 'What does version control primarily provide?', options: ['A history of code changes and collaboration', 'Automatic salary calculation', 'Network encryption by itself', 'Hardware monitoring'], answer: 'A history of code changes and collaboration', section: 'Tools & Workflow' },
+      { id: 3, question: 'Which approach is safest for managing production application secrets?', options: ['Secret management / environment variable injection', 'Hard-coding them in source control', 'Embedding them in public client HTML', 'Sharing them in chat channels'], answer: 'Secret management / environment variable injection', section: 'Security' },
+      { id: 4, question: 'Which HTTP status code typically indicates successful resource creation?', options: ['201 Created', '200 OK', '404 Not Found', '500 Server Error'], answer: '201 Created', section: 'Web Architecture' },
+      { id: 5, question: 'Which data structure offers average O(1) time complexity for key lookups?', options: ['Hash Table / Map', 'Linked List', 'Stack', 'Unsorted Array'], answer: 'Hash Table / Map', section: 'Computer Science' },
+      { id: 6, question: 'Why are automated unit tests valuable in continuous integration?', options: ['They prevent regressions and verify discrete logic early', 'They eliminate the need for any other documentation', 'They ensure 100% bug-free software forever', 'They slow down deployments intentionally'], answer: 'They prevent regressions and verify discrete logic early', section: 'Testing' },
+      { id: 7, question: 'What is the purpose of database indexing?', options: ['To significantly speed up data query retrieval', 'To compress text size only', 'To prevent any unauthorized logins', 'To automatically backup the database'], answer: 'To significantly speed up data query retrieval', section: 'Databases' },
+      { id: 8, question: 'In RESTful APIs, which HTTP verb is generally idempotent for updating entire resources?', options: ['PUT', 'POST', 'PATCH', 'CONNECT'], answer: 'PUT', section: 'API Design' },
+    ];
+  }
+  if (['data', 'analytics', 'scientist', 'bi'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'What should you do first when an analysis produces an unexpected outlier?', options: ['Validate data pipeline quality, provenance, and assumptions', 'Delete the outliers immediately without note', 'Publish the findings without checking', 'Alter chart dimensions to hide it'], answer: 'Validate data pipeline quality, provenance, and assumptions', section: 'Data Integrity' },
+      { id: 2, question: 'What does precision measure in classification models?', options: ['Correct positives among all predicted positives', 'Correct positives among all actual positives', 'Overall accuracy across all classes', 'Only false negative rates'], answer: 'Correct positives among all predicted positives', section: 'Evaluation Metrics' },
+      { id: 3, question: 'Why is cross-validation widely used during model training?', options: ['To assess generalization performance and reduce overfitting', 'To encrypt dataset rows', 'To format numbers into currency', 'To replace data cleaning'], answer: 'To assess generalization performance and reduce overfitting', section: 'Machine Learning' },
+      { id: 4, question: 'Which SQL clause is used to filter aggregated group values?', options: ['HAVING', 'WHERE', 'GROUP BY', 'ORDER BY'], answer: 'HAVING', section: 'SQL & Querying' },
+      { id: 5, question: 'What is the primary danger of multicollinearity in regression?', options: ['Unreliable and unstable coefficient estimates', 'Instant database crashing', 'Underfitting on trivial variables', 'Loss of memory on the client'], answer: 'Unreliable and unstable coefficient estimates', section: 'Statistics' },
+    ];
+  }
+  return [
+    { id: 1, question: `What is most essential when performing the ${role} role?`, options: ['Delivering role-relevant outcomes with quality, accuracy, and accountability', 'Avoiding cross-functional feedback', 'Ignoring client guidelines', 'Skipping validation steps'], answer: 'Delivering role-relevant outcomes with quality, accuracy, and accountability', section: 'Core Competency' },
+    { id: 2, question: 'What is the most effective way to communicate complex project progress?', options: ['Structured updates detailing deliverables, metrics, and risks', 'Unscheduled long verbal calls without notes', 'Only communicating when a critical crisis happens', 'Sending raw unorganized logs'], answer: 'Structured updates detailing deliverables, metrics, and risks', section: 'Communication' },
+    { id: 3, question: 'How should you prioritize competing tasks with tight deadlines?', options: ['Assess business impact, urgency, dependencies, and clarify expectations', 'Work randomly on whichever was received last', 'Postpone all difficult tasks until next week', 'Promise completion of everything without review'], answer: 'Assess business impact, urgency, dependencies, and clarify expectations', section: 'Execution' },
+    { id: 4, question: 'What is the recommended approach to receiving critical stakeholder feedback?', options: ['Listen actively, acknowledge points, and propose an action-oriented improvement plan', 'Become defensive and blame tools', 'Ignore the feedback completely', 'Withdraw from communication'], answer: 'Listen actively, acknowledge points, and propose an action-oriented improvement plan', section: 'Professionalism' },
+  ];
+}
+
+// ============================================================
+// API ROUTES
+// ============================================================
+
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', service: 'CareerLens AI API', version: '5.4.0' });
+});
+
+// Resume analyze endpoint
+app.post('/api/resume/analyze', async (req: Request, res: Response) => {
+  try {
+    const { resume_text = '', filename = 'resume.txt', target_role = '' } = req.body;
+    if (!resume_text || !resume_text.trim()) {
+      return res.status(422).json({ error: 'The uploaded resume contains no readable text.' });
+    }
+
+    const localResult = analyzeResume(resume_text, filename, target_role);
+
+    // If Gemini client is active, generate enhanced executive summary & tailored coaching
+    if (aiClient) {
+      try {
+        const prompt = `You are CareerLens AI Career Coach. Analyze this resume:
+Target Role: "${target_role || 'Not specified'}"
+Resume excerpt (first 3000 chars):
+${resume_text.slice(0, 3000)}
+
+Provide a concise JSON object with:
+{
+  "executive_summary": "2-3 sentences on candidate profile standing",
+  "ai_strengths": ["top 3 distinct strengths"],
+  "ai_recommendations": ["top 3 high-impact actionable fixes"],
+  "interview_readiness_verdict": "short readiness summary"
+}`;
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          if (parsed.executive_summary) (localResult as any).executive_summary = parsed.executive_summary;
+          if (Array.isArray(parsed.ai_strengths) && parsed.ai_strengths.length) {
+            localResult.strengths = [...parsed.ai_strengths, ...localResult.strengths].slice(0, 5);
+          }
+          if (Array.isArray(parsed.ai_recommendations) && parsed.ai_recommendations.length) {
+            localResult.recommendations = [...parsed.ai_recommendations, ...localResult.recommendations].slice(0, 6);
+          }
+        }
+      } catch (e) {
+        // Fallback to pure local analysis
+      }
+    }
+
+    return res.json(localResult);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Analysis failed' });
+  }
+});
+
+// Job Match endpoint
+app.post('/api/job/match', (req: Request, res: Response) => {
+  try {
+    const { resume_text = '', job_description = '' } = req.body;
+    if (!resume_text.trim() || !job_description.trim()) {
+      return res.status(422).json({ error: 'Both resume and job description are required.' });
+    }
+    const result = matchJob(resume_text, job_description);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Matching failed' });
+  }
+});
+
+// Salary estimate endpoint
+app.post('/api/salary/estimate', (req: Request, res: Response) => {
+  const { role = '', experience = 'Fresher (0-1 yrs)', location = 'India' } = req.body;
+  const roleL = (role || '').toLowerCase();
+  let base = 4.5;
+
+  if (['ai', 'machine learning', 'data scientist', 'cloud', 'cyber'].some(k => roleL.includes(k))) base = 7.0;
+  else if (['software', 'developer', 'devops', 'qa'].some(k => roleL.includes(k))) base = 5.5;
+  else if (['product', 'project manager', 'manager'].some(k => roleL.includes(k))) base = 6.0;
+  else if (['finance', 'account'].some(k => roleL.includes(k))) base = 4.0;
+  else if (['sales', 'marketing', 'hr', 'human resource'].some(k => roleL.includes(k))) base = 4.2;
+  else if (['civil', 'mechanical', 'electrical'].some(k => roleL.includes(k))) base = 4.3;
+
+  if (experience.includes('Mid')) base *= 1.45;
+  else if (experience.includes('Senior')) base *= 2.0;
+  else if (experience.includes('Lead')) base *= 2.6;
+
+  return res.json({
+    role,
+    experience,
+    location,
+    min_lpa: Math.round(base * 0.85 * 10) / 10,
+    max_lpa: Math.round(base * 1.8 * 10) / 10,
+    currency: 'LPA (INR) / Equiv',
+    note: 'Indicative compensation benchmark based on role family and seniority. Verify against live employer market listings before negotiation.',
+    source: 'careerlens-salary-v5',
+  });
+});
+
+// Fraud Detection endpoint
+app.post('/api/job/fraud', (req: Request, res: Response) => {
+  const { text = '' } = req.body;
+  const lower = (text || '').toLowerCase();
+  const matched = Object.entries(RISK_PATTERNS)
+    .filter(([phrase]) => lower.includes(phrase))
+    .map(([_, desc]) => desc);
+
+  const score = Math.min(100, matched.length * 24);
+  const level = score >= 55 ? 'HIGH RISK' : score >= 25 ? 'MEDIUM RISK' : 'LOW RISK';
+
+  return res.json({
+    score,
+    level,
+    signals: matched.length,
+    signal_details: matched,
+    verdict: score >= 55 ? 'Warning: Severe recruitment red flags detected!' : score >= 25 ? 'Caution: Potential unsolicited recruitment risk.' : 'Safe: No immediate fraud patterns detected.',
+    source: 'careerlens-fraud-engine',
+  });
+});
+
+// Career Roadmap endpoint
+app.post('/api/career/roadmap', async (req: Request, res: Response) => {
+  const { resume_text = '', target_role = '' } = req.body;
+  const skills = Array.from(new Set(getSkillSet(resume_text))).sort();
+  const hints = getRoleHints(target_role);
+  const missing = hints.filter(h => !(resume_text || '').toLowerCase().includes(h));
+
+  const defaultSteps = [
+    `Phase 1: Clarify foundational industry competencies and standards for ${target_role}.`,
+    `Phase 2: Master and demonstrate core tools: ${missing.slice(0, 5).join(', ') || 'essential toolchains and frameworks'}.`,
+    'Phase 3: Architect 2–3 portfolio projects with measurable business impact, documented in Google XYZ format.',
+    'Phase 4: Optimize resume keywords, LinkedIn visibility, and target tailored job requisitions.',
+    'Phase 5: Practice role-specific behavioral (STAR method) and deep technical interview scenarios.',
+  ];
+
+  return res.json({
+    target_role,
+    current_skills: skills,
+    missing_skills: missing.slice(0, 10),
+    steps: defaultSteps,
+    source: 'careerlens-roadmap-v5',
+    analysis_version: 5,
+  });
+});
+
+// AI Chat Assistant endpoint
+app.post('/api/chat/ask', async (req: Request, res: Response) => {
+  try {
+    const { messages = [], resume_context = '' } = req.body;
+    const latestUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
+
+    if (aiClient && latestUserMsg) {
+      try {
+        const sysPrompt = `You are CareerLens AI Career & Resume Consultant. Be helpful, concise, realistic, and empowering.
+Candidate Resume Context (if any):
+${resume_context ? resume_context.slice(0, 3000) : 'None provided yet'}`;
+
+        const chat = aiClient.chats.create({
+          model: 'gemini-2.5-flash',
+          config: { systemInstruction: sysPrompt },
+        });
+
+        const reply = await chat.sendMessage({ message: latestUserMsg });
+        if (reply.text) {
+          return res.json({ reply: reply.text, source: 'gemini-ai' });
+        }
+      } catch (err) {
+        console.warn('Gemini chat fallback:', err);
+      }
+    }
+
+    // Local smart fallback matching api.py
+    const q = latestUserMsg.toLowerCase();
+    const skills = Array.from(new Set(getSkillSet(resume_context))).sort();
+    let reply = '';
+
+    if (q.includes('how to become') || q.includes('become a')) {
+      const role = latestUserMsg.replace(/.*?how to become\s+(?:an?\s+)?/i, '').replace(/[?.!]/g, '').trim() || 'your target role';
+      reply = `### Roadmap to become a ${role}\n\n` +
+        `**1. Learn Foundations** — understand core competencies and architecture patterns.\n\n` +
+        `**2. Build Practical Skills** — build hands-on applications rather than just passive tutorials.\n\n` +
+        `**3. Build a Proven Portfolio** — build 2–3 public repositories showcasing measurable impact and test coverage.\n\n` +
+        `**4. Tailor Your Resume** — highlight achievements in the Google XYZ format (Accomplished [X] as measured by [Y] by doing [Z]).\n\n` +
+        `**5. Master Interviews** — practice domain fundamentals, behavioral STAR stories, and system architecture.\n\n` +
+        (skills.length > 0 ? `\n\n*Your current detected resume skills:* ${skills.slice(0, 10).join(', ')}.` : '');
+    } else if (q.includes('resume')) {
+      reply = 'Focus your resume on clear role alignment, quantified metric achievements, strong action verbs, standard sections (Summary, Experience, Projects, Skills, Education), and keyword synchronization with target job descriptions.';
+    } else if (q.includes('interview')) {
+      reply = 'For interviews, prepare a crisp 90-second elevator pitch, 4–6 STAR stories (Situation, Task, Action, Result) highlighting your direct personal contribution, core domain fundamentals, and 3 insightful questions for the interviewer.';
+    } else if (q.includes('salary') || q.includes('pay') || q.includes('ctc')) {
+      reply = 'Salary is driven by role domain, experience level, regional market demand, and proven impact. Leverage CareerLens Salary Estimation tool to benchmark your expected band before negotiating.';
+    } else {
+      reply = `For your goal regarding **"${latestUserMsg}"**, divide your action plan into three phases: 1) Align with target role requirements, 2) Build tangible project evidence, and 3) Practice high-impact communication. What specific role are you targeting next?`;
+    }
+
+    return res.json({ reply, source: 'careerlens-local' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Chat error' });
+  }
+});
+
+// Pre-interview assessment generation
+app.post('/api/assessment/generate', (req: Request, res: Response) => {
+  const { role = 'Software Developer', question_count = 20 } = req.body;
+  const bank = getAssessmentBank(role);
+  const count = Math.max(5, Math.min(50, question_count));
+  const questions: any[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const base = bank[i % bank.length];
+    const opts = [...base.options].sort(() => Math.random() - 0.5);
+    questions.push({
+      id: i + 1,
+      question: count > bank.length && i >= bank.length ? `${base.question} (Scenario ${Math.floor(i / bank.length) + 1})` : base.question,
+      options: opts,
+      answer: base.answer,
+      section: base.section,
+    });
+  }
+
+  return res.json({
+    role,
+    question_count: count,
+    questions,
+    source: 'careerlens-assessment-generator-v2',
+  });
+});
+
+// Pre-interview assessment score
+app.post('/api/assessment/score', (req: Request, res: Response) => {
+  const { questions = [], answers = {} } = req.body;
+  let correct = 0;
+  let wrong = 0;
+  let unanswered = 0;
+
+  for (const q of questions) {
+    const qid = String(q.id);
+    const selected = answers[qid] ?? answers[q.id];
+    if (selected === undefined || selected === null || selected === '') {
+      unanswered++;
+    } else if (String(selected).trim() === String(q.answer).trim()) {
+      correct++;
+    } else {
+      wrong++;
+    }
+  }
+
+  const total = questions.length;
+  const percentage = total > 0 ? Math.round((correct / total) * 1000) / 10 : 0;
+
+  return res.json({
+    score: correct,
+    total,
+    percentage,
+    correct_count: correct,
+    wrong_count: wrong,
+    unanswered_count: unanswered,
+  });
+});
+
+// Mock interview questions
+app.post('/api/mock-interview/questions', (req: Request, res: Response) => {
+  const { role = 'Software Developer', resume_text = '', company = '', transcript = [] } = req.body;
+  const companyName = company.trim() || 'our team';
+  const skills = Array.from(new Set(getSkillSet(resume_text))).sort();
+
+  const questions: string[] = [
+    `Please introduce yourself and walk me through your background, highlighting why you are a strong fit for the ${role} position.`,
+    `What inspired you to specialize in the ${role} career path, and what excites you about this opportunity?`,
+    `Why do you want to work at ${companyName}, and what value would you bring to our team?`,
+    'Tell me about the most impactful project or achievement on your resume. What was your personal contribution?',
+  ];
+
+  for (const s of skills.slice(0, 5)) {
+    questions.push(`Your resume highlights ${s}. Can you describe a production challenge where you utilized ${s} and what outcome was achieved?`);
+  }
+
+  questions.push(
+    'Tell me about a complex technical or operational roadblock you encountered and how you resolved it.',
+    'Tell me about a time you received constructive feedback or faced a failure. What did you learn?',
+    'How do you prioritize your deliverables when multiple high-stakes tasks compete for your attention?',
+    `What is one area of improvement you are currently developing in ${role}?`,
+    'What do you aim to accomplish in your first 90 days in this role?'
+  );
+
+  const used = new Set(transcript.map((t: any) => String(t.question || '')));
+  const remaining = questions.filter(q => !used.has(q));
+  const next_question = remaining.length > 0 ? remaining[0] : `As a ${role}, what would be your strategy for scaling our current workflow?`;
+
+  return res.json({
+    next_question,
+    available_questions: remaining.length,
+    source: 'careerlens-interview-engine',
+  });
+});
+
+// Mock interview scoring
+app.post('/api/mock-interview/score', (req: Request, res: Response) => {
+  const { transcript = [], role = 'Software Developer' } = req.body;
+  if (!transcript || transcript.length === 0) {
+    return res.json({
+      overall: 0,
+      communication: 0,
+      completeness: 0,
+      evidence: 0,
+      relevance: 0,
+      answered: 0,
+      strengths: [],
+      improvements: ['Submit answers before completing the mock interview.'],
+    });
+  }
+
+  const answers = transcript.map((x: any) => String(x.answer || ''));
+  const wordCounts = answers.map((a: string) => a.split(/\s+/).filter(Boolean).length);
+  const avgWords = wordCounts.reduce((acc: number, c: number) => acc + c, 0) / wordCounts.length;
+
+  const substantiveCount = wordCounts.filter((w: number) => w >= 25).length;
+  const completeness = Math.round((substantiveCount / answers.length) * 100);
+
+  const evidenceKeywords = ['because', 'result', 'impact', 'example', 'metric', 'improved', 'built', 'developed', 'implemented', 'saved', 'percent', '%'];
+  const evidenceCount = answers.filter((a: string) => evidenceKeywords.some(k => a.toLowerCase().includes(k))).length;
+  const evidence = Math.round((evidenceCount / answers.length) * 100);
+
+  const roleLower = role.toLowerCase();
+  const relevanceCount = answers.filter((a: string) => a.toLowerCase().includes(roleLower) || ['experience', 'project', 'skill', 'problem', 'solution', 'team'].some(k => a.toLowerCase().includes(k))).length;
+  const relevance = Math.round((relevanceCount / answers.length) * 100);
+
+  const communication = Math.min(100, Math.round(Math.min(100, avgWords * 2.5) * 0.6 + evidence * 0.2 + relevance * 0.2));
+  const overall = Math.max(10, Math.min(98, Math.round(communication * 0.45 + completeness * 0.25 + evidence * 0.15 + relevance * 0.15)));
+
+  const strengths: string[] = [
+    `Completed ${transcript.length} interview responses for ${role}.`,
+  ];
+  if (avgWords >= 40) strengths.push('Answers demonstrate comprehensive thought and situational detail.');
+  if (evidence >= 50) strengths.push('Strong use of concrete evidence, metrics, and actionable examples.');
+
+  const improvements: string[] = [];
+  if (evidence < 40) improvements.push('Incorporate the STAR methodology with measurable business metrics (e.g. reduced load time by 30%).');
+  if (avgWords < 30) improvements.push('Expand on your individual ownership and technical decision trade-offs.');
+
+  return res.json({
+    overall,
+    communication,
+    completeness,
+    evidence,
+    relevance,
+    answered: transcript.length,
+    strengths,
+    improvements: improvements.length ? improvements : ['Maintain this structured, evidence-first communication style in live interviews.'],
+  });
+});
+
+// Bulk recruiter screening
+app.post('/api/recruiter/screen', (req: Request, res: Response) => {
+  const { job_description = '', resumes = [] } = req.body;
+  if (!job_description.trim()) {
+    return res.status(422).json({ error: 'Job description is required for bulk screening.' });
+  }
+
+  const results = (resumes as any[]).map((r, index) => {
+    const text = r.text || '';
+    const filename = r.filename || `candidate_${index + 1}.pdf`;
+    const profile = analyzeResume(text, filename);
+    const match = matchJob(text, job_description);
+
+    return {
+      id: r.id || `cand_${Date.now()}_${index}`,
+      name: r.name || profile.name,
+      email: profile.email || r.email || `candidate${index + 1}@example.com`,
+      phone: profile.phone || r.phone || '',
+      resume_score: profile.resume_score,
+      role_match: match.overall,
+      status: match.overall >= 70 ? 'Shortlisted' : 'Screened',
+      assessment_status: 'Not Sent',
+      email_status: profile.email ? 'Found' : 'Missing',
+      skills: profile.skills,
+      missing_skills: match.missing,
+      strengths: profile.strengths,
+      recommendations: profile.recommendations,
+    };
+  });
+
+  results.sort((a, b) => b.role_match - a.role_match);
+  return res.json(results);
+});
+
+// Send email / mock dispatcher
+app.post('/api/send-email', (req: Request, res: Response) => {
+  const { to_email, subject, content } = req.body;
+  if (!to_email || !subject) {
+    return res.status(422).json({ error: 'Missing to_email or subject' });
+  }
+  // In dev / AI Studio container, log and return successful notification
+  console.log(`[Email Dispatcher] Mock sent email to ${to_email}: "${subject}"`);
+  return res.json({ status: 'sent', message: `Assessment email successfully dispatched to ${to_email}` });
+});
+
+// Public assessment creation and retrieval endpoints
+app.post('/api/public/assessment/create', (req: Request, res: Response) => {
+  const { role, candidate_id, candidate_name, candidate_email, duration_minutes = 30, questions = [] } = req.body;
+  const token = `cl_test_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+  
+  const record = {
+    token,
+    role,
+    candidate_id,
+    candidate_name,
+    candidate_email,
+    duration_minutes,
+    questions,
+    created_at: new Date().toISOString(),
+    used: false,
+  };
+
+  assessmentStore.set(token, record);
+  return res.json({ token, link: `/?assessment=${token}` });
+});
+
+app.get('/api/public/assessment/:token', (req: Request, res: Response) => {
+  const token = String(req.params.token || '');
+  const record = assessmentStore.get(token);
+  if (!record) {
+    return res.status(404).json({ error: 'Assessment token not found or expired' });
+  }
+  return res.json(record);
+});
+
+app.post('/api/public/assessment/:token/submit', (req: Request, res: Response) => {
+  const token = String(req.params.token || '');
+  const { answers = {}, result = {} } = req.body;
+  const record = assessmentStore.get(token);
+  if (!record) {
+    return res.status(404).json({ error: 'Assessment record not found' });
+  }
+  record.used = true;
+  record.submitted_at = new Date().toISOString();
+  record.answers = answers;
+  record.result = result;
+  assessmentStore.set(token, record);
+
+  return res.json({ status: 'success', recorded: true, result });
+});
+
+// Recruiter state persistence
+app.get('/api/recruiter/state/:userId', (req: Request, res: Response) => {
+  const userId = String(req.params.userId || '');
+  const state = recruiterStateStore.get(userId) || { campaign: null, candidates: [], assessments: [], submissions: [] };
+  return res.json(state);
+});
+
+app.post('/api/recruiter/state/:userId', (req: Request, res: Response) => {
+  const userId = String(req.params.userId || '');
+  recruiterStateStore.set(userId, req.body);
+  return res.json({ status: 'saved' });
+});
+
+// ============================================================
+// VITE INTEGRATION (DEV & PROD)
+// ============================================================
+async function startServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true, host: HOST, port: PORT },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.resolve(__dirname, 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (_req: Request, res: Response) => {
+      res.sendFile(path.resolve(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, HOST, () => {
+    console.log(`[CareerLens AI] Server running at http://${HOST}:${PORT}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('[CareerLens AI] Failed to start server:', err);
+  process.exit(1);
+});
