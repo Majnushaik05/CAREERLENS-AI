@@ -7,41 +7,52 @@ interface JobMatchViewProps {
 }
 
 export const JobMatchView: React.FC<JobMatchViewProps> = ({ analysis }) => {
-  const [searchQuery, setSearchQuery] = useState('AI Engineer');
+  const [searchQuery, setSearchQuery] = useState('Senior Software Engineer');
   const [selectedRoleIndex, setSelectedRoleIndex] = useState(0);
 
-  // Top job matches list matching Reference Image 1 bottom-left
+  const targetRoleTitle = analysis?.target_role || searchQuery || 'Senior Software Engineer';
+  const matchScore = analysis?.market_match || (analysis ? Math.round(analysis.resume_score * 0.94) : null);
+
+  // Dynamic job matches based on candidate's target role
   const topJobMatches = [
-    { title: 'AI Engineer', company: 'TechNova Solutions', location: 'Bengaluru, India', match: '92%' },
-    { title: 'ML Engineer', company: 'DataSense Labs', location: 'Hyderabad, India', match: '88%' },
-    { title: 'AI Developer', company: 'InnovateX', location: 'Pune, India', match: '84%' },
+    { title: targetRoleTitle, company: 'TechNova Solutions', location: 'Bengaluru, India', match: matchScore ? `${matchScore}%` : '88%' },
+    { title: `Senior ${targetRoleTitle}`, company: 'Apex Cloud Innovations', location: 'Hyderabad, India', match: matchScore ? `${Math.max(60, matchScore - 4)}%` : '84%' },
+    { title: `${targetRoleTitle} Specialist`, company: 'InnovateX Labs', location: 'Pune, India', match: matchScore ? `${Math.max(55, matchScore - 8)}%` : '80%' },
   ];
 
-  const matchedSkillsList = [
-    { skill: 'Python', level: 'High', imp: 'High' },
-    { skill: 'Machine Learning', level: 'High', imp: 'High' },
-    { skill: 'NLP', level: 'Medium', imp: 'High' },
-    { skill: 'SQL', level: 'High', imp: 'Medium' },
-    { skill: 'Streamlit', level: 'Medium', imp: 'Medium' },
-    { skill: 'Pandas', level: 'High', imp: 'High' },
-  ];
+  const matchedSkillsList = analysis && analysis.skills.length > 0
+    ? analysis.skills.slice(0, 6).map((sk, i) => ({
+        skill: sk,
+        level: i % 2 === 0 ? 'High' : 'Medium',
+        imp: 'High',
+      }))
+    : [
+        { skill: 'Python', level: 'High', imp: 'High' },
+        { skill: 'SQL', level: 'High', imp: 'Medium' },
+        { skill: 'Git & Version Control', level: 'Medium', imp: 'High' },
+        { skill: 'REST APIs', level: 'High', imp: 'High' },
+      ];
 
-  const skillsToUpgrade = [
-    { skill: 'Deep Learning', gap: 'Medium' },
-    { skill: 'MLOps', gap: 'High' },
-    { skill: 'Docker', gap: 'Medium' },
-    { skill: 'AWS', gap: 'High' },
-    { skill: 'System Design', gap: 'Medium' },
-    { skill: 'Data Structures', gap: 'Medium' },
-  ];
+  const skillsToUpgrade = analysis && analysis.missing_skills.length > 0
+    ? analysis.missing_skills.slice(0, 6).map((sk, i) => ({
+        skill: sk,
+        gap: i % 2 === 0 ? 'High' : 'Medium',
+      }))
+    : [
+        { skill: 'Cloud & AWS', gap: 'High' },
+        { skill: 'Docker Containerization', gap: 'Medium' },
+        { skill: 'System Design', gap: 'Medium' },
+      ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto selection:bg-blue-600 selection:text-white">
       {/* Top Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs">
-        <h1 className="text-xl font-black text-slate-900 tracking-tight">AI Job Match</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Find the best job opportunities that match your skills and experience.
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-2xs">
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Job Match &amp; Alignment Radar</h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          {analysis
+            ? `Matching your verified ${analysis.skills.length} skills against market requisitions for ${targetRoleTitle}.`
+            : 'Find opportunities that fit your verified competencies. Scan your resume in the Dashboard to personalize your match index.'}
         </p>
       </div>
 
@@ -85,7 +96,7 @@ export const JobMatchView: React.FC<JobMatchViewProps> = ({ analysis }) => {
                   />
                   <path
                     className="text-blue-600"
-                    strokeDasharray="86, 100"
+                    strokeDasharray={`${matchScore || 82}, 100`}
                     strokeWidth="3"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -94,14 +105,18 @@ export const JobMatchView: React.FC<JobMatchViewProps> = ({ analysis }) => {
                   />
                 </svg>
                 <div className="absolute text-center">
-                  <div className="text-2xl font-black text-slate-900 font-mono">86%</div>
-                  <div className="text-[10px] font-bold text-emerald-600">Excellent Match</div>
+                  <div className="text-2xl font-black text-slate-900 font-mono">
+                    {matchScore ? `${matchScore}%` : '82%'}
+                  </div>
+                  <div className="text-[10px] font-bold text-emerald-600">
+                    {matchScore ? (matchScore >= 80 ? 'High Alignment' : 'Good Match') : 'Market Alignment'}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <div className="text-[11px] text-slate-500 text-center border-t border-slate-100 pt-3">
-            You are a strong fit for AI Engineer roles in market.
+            Target requisition profile: <span className="font-semibold text-slate-700">{targetRoleTitle}</span>
           </div>
         </div>
 

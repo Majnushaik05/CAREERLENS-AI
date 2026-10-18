@@ -21,7 +21,7 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
-import { IMAGES } from '../assets/images';
+import { CareerLensLogo } from './CareerLensLogo';
 
 interface SidebarProps {
   workspace: 'Job Seeker Workspace' | 'Recruiter Workspace';
@@ -153,9 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="p-3 border-t border-slate-100 bg-slate-50/70">
         <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-900 shrink-0 shadow-2xs">
-              <img src={IMAGES.logo} alt="Career Lens Emblem" className="w-full h-full object-cover" />
-            </div>
+            <CareerLensLogo size="xs" />
             <div className="min-w-0">
               <div className="text-xs font-bold text-slate-900 truncate">{username}</div>
               <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">

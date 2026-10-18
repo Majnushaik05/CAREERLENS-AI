@@ -119,7 +119,7 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
               Assessment Successfully Recorded
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Your exam results have been transmitted directly to the CareerLens AI Recruiter Score Vault.
+              Your exam results have been transmitted directly to the Career Lens Recruiter Score Vault.
             </p>
           </div>
 

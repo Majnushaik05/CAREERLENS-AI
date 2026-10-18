@@ -11,7 +11,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ analysis }) =>
     {
       role: 'assistant',
       content:
-        'Hello! I am your CareerLens AI Career & Resume Consultant. Ask me anything about tailoring your resume, structuring STAR behavioral responses, benchmarking compensation, or transitioning between engineering, data, and management domains.',
+        'Hello! I am your Career Lens Career & Resume Consultant. Ask me anything about tailoring your resume, structuring STAR behavioral responses, benchmarking compensation, or transitioning between engineering, data, and management domains.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -70,7 +70,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ analysis }) =>
           <span className="text-blue-600 font-bold">Interactive Advisory</span>
         </div>
         <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
-          AI Career &amp; Recruitment Advisory Consultant
+          Career &amp; Recruitment Advisory Consultant
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
           Get real-time answers on resume positioning, career transitions, behavioral question structure, and salary negotiation.

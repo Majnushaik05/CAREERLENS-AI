@@ -232,7 +232,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
 
                   <div className="flex items-center gap-4 self-end md:self-auto shrink-0">
                     <div className="text-right pr-2">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATS Score</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Score Rating</div>
                       <div className="text-base font-black text-slate-950 font-mono tabular-nums">{cand.resume_score} / 100</div>
                     </div>
 

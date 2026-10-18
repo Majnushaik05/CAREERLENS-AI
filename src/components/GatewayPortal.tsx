@@ -14,6 +14,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { IMAGES } from '../assets/images';
+import { CareerLensLogo } from './CareerLensLogo';
 
 interface GatewayPortalProps {
   username: string;
@@ -31,9 +32,7 @@ export const GatewayPortal: React.FC<GatewayPortalProps> = ({ username, onSelect
           className="p-6 sm:p-7 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5"
         >
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 shrink-0 shadow-xs">
-              <img src={IMAGES.logo} alt="Career Lens Emblem" className="w-full h-full object-cover" />
-            </div>
+            <CareerLensLogo size="lg" />
             <div>
               <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 mb-0.5 tracking-wider uppercase">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -104,9 +103,7 @@ export const GatewayPortal: React.FC<GatewayPortalProps> = ({ username, onSelect
                 
                 {/* Floating Badge & Logo */}
                 <div className="absolute top-3.5 left-3.5 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg overflow-hidden border border-white/80 bg-slate-900 shadow-xs">
-                    <img src={IMAGES.logo} alt="Emblem" className="w-full h-full object-cover" />
-                  </div>
+                  <CareerLensLogo size="xs" />
                   <span className="bg-white/95 backdrop-blur-xs text-[10px] font-bold text-blue-700 px-2.5 py-1 rounded-full border border-blue-200 shadow-xs">
                     FOR JOB SEEKERS &amp; CANDIDATES
                   </span>
@@ -201,9 +198,7 @@ export const GatewayPortal: React.FC<GatewayPortalProps> = ({ username, onSelect
                 
                 {/* Floating Badge & Logo */}
                 <div className="absolute top-3.5 left-3.5 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg overflow-hidden border border-white/80 bg-slate-900 shadow-xs">
-                    <img src={IMAGES.logo} alt="Emblem" className="w-full h-full object-cover" />
-                  </div>
+                  <CareerLensLogo size="xs" />
                   <span className="bg-white/95 backdrop-blur-xs text-[10px] font-bold text-purple-700 px-2.5 py-1 rounded-full border border-purple-200 shadow-xs">
                     FOR TALENT TEAMS &amp; RECRUITERS
                   </span>

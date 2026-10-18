@@ -46,8 +46,28 @@ export const App: React.FC = () => {
   const [workspace, setWorkspace] = useState<'Job Seeker Workspace' | 'Recruiter Workspace'>('Job Seeker Workspace');
   const [activeTool, setActiveTool] = useState('Dashboard');
 
-  // Shared Data States
-  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
+  // Shared Data States with LocalStorage Persistence
+  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(() => {
+    try {
+      const saved = localStorage.getItem('careerlens_resume_analysis');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleSetAnalysis = (newAnalysis: ResumeAnalysis | null) => {
+    setAnalysis(newAnalysis);
+    try {
+      if (newAnalysis) {
+        localStorage.setItem('careerlens_resume_analysis', JSON.stringify(newAnalysis));
+      } else {
+        localStorage.removeItem('careerlens_resume_analysis');
+      }
+    } catch (err) {
+      console.warn('Storage sync error:', err);
+    }
+  };
   const [campaign, setCampaign] = useState<HiringCampaign | null>({
     id: 'camp_init',
     title: 'Senior Full Stack Software Engineer at Apex Cloud Innovations',
@@ -127,7 +147,13 @@ Required competencies:
     if (workspace === 'Job Seeker Workspace') {
       switch (activeTool) {
         case 'Resume Intelligence':
-          return <ResumeIntelligenceView analysis={analysis} onAnalysisComplete={setAnalysis} />;
+          return (
+            <ResumeIntelligenceView
+              analysis={analysis}
+              onAnalysisComplete={handleSetAnalysis}
+              onClearAnalysis={() => handleSetAnalysis(null)}
+            />
+          );
         case 'Pre-Interview Assessment':
           return <PreInterviewAssessmentView />;
         case 'AI Mock Interview':
@@ -149,7 +175,14 @@ Required competencies:
           return <AIAssistantView analysis={analysis} />;
         case 'Dashboard':
         default:
-          return <DashboardView analysis={analysis} onNavigate={setActiveTool} />;
+          return (
+            <DashboardView
+              analysis={analysis}
+              onNavigate={setActiveTool}
+              onAnalysisComplete={handleSetAnalysis}
+              onClearAnalysis={() => handleSetAnalysis(null)}
+            />
+          );
       }
     } else {
       switch (activeTool) {
@@ -198,6 +231,7 @@ Required competencies:
               campaign={campaign}
               candidates={candidates}
               onNavigate={setActiveTool}
+              onClearCandidates={() => setCandidates([])}
             />
           );
       }

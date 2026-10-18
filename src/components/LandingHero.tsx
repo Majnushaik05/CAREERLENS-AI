@@ -22,6 +22,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { IMAGES } from '../assets/images';
+import { CareerLensLogo } from './CareerLensLogo';
 
 interface LandingHeroProps {
   onLogin: (name: string) => void;
@@ -37,7 +38,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
 
   // Dynamic rolling text terms for Hero
   const rollingWords = [
-    'ATS Resume Scoring',
+    'Resume Scoring & Audit',
     'Career Roadmaps',
     'Mock Interview Prep',
     'Candidate Intelligence',
@@ -66,11 +67,11 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
 
   // Gallery of realistic systems, graphs, and interfaces for rolling marquee
   const previewImages = [
-    { src: IMAGES.careerRoadmap, title: 'Career Progression Pathway', tag: 'Growth Roadmap' },
+    { src: IMAGES.systemGraphMatrix, title: 'Multi-Dimensional Score Matrix', tag: 'Graph Telemetry' },
+    { src: IMAGES.careerDashboard, title: 'System Analytics Architecture', tag: 'Core System' },
     { src: IMAGES.analyticsMockup, title: 'ATS Resume Audit & Scoring', tag: 'Intelligence' },
     { src: IMAGES.recruiterCenter, title: 'Recruiter Command Dashboard', tag: 'Talent Acquisition' },
-    { src: IMAGES.interviewSession, title: 'Interactive Mock Interview Session', tag: 'STAR Assessment' },
-    { src: IMAGES.officeWorkspace, title: 'Enterprise Talent Operations', tag: 'Executive Desk' },
+    { src: IMAGES.careerRoadmap, title: 'Career Progression Pathway', tag: 'Growth Roadmap' },
     { src: IMAGES.heroMockup, title: 'System Analytics Overview', tag: 'Architecture' },
   ];
 
@@ -81,12 +82,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
           {/* Logo with App Logo Emblem and Clean Name */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 shrink-0 shadow-xs">
-              <img src={IMAGES.logo} alt="Career Lens Emblem" className="w-full h-full object-cover" />
-            </div>
-            <span className="text-lg font-black tracking-tight text-slate-950">
-              Career Lens
-            </span>
+            <CareerLensLogo size="sm" showText={true} />
           </div>
 
           {/* Navigation Links */}
@@ -125,7 +121,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
       <div className="border-b border-slate-200 bg-slate-50 py-2 overflow-hidden">
         <div className="animate-marquee whitespace-nowrap flex items-center gap-8 text-[11px] font-semibold text-slate-600">
           {[
-            '⚡ 94+ ATS Resume Scorer',
+            '⚡ 94+ Score Radar',
             '📊 Real-Time Skill Gap Analysis',
             '🎯 Role-Based Assessment Tokens',
             '🎙️ STAR Method Mock Interviews',
@@ -133,7 +129,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
             '🏢 Sourced Applicant Shortlisting',
             '🔒 Credential Verification & Vault',
             '🗺️ Personalized Career Roadmap Nodes',
-            '⚡ 94+ ATS Resume Scorer',
+            '⚡ 94+ Score Radar',
             '📊 Real-Time Skill Gap Analysis',
             '🎯 Role-Based Assessment Tokens',
             '🎙️ STAR Method Mock Interviews',
@@ -148,9 +144,47 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
         </div>
       </div>
 
-      {/* HERO SECTION WITH ROLLING TEXT */}
-      <section id="home" className="pt-14 pb-16 px-6 sm:px-12 bg-white">
-        <div className="max-w-7xl mx-auto">
+      {/* HERO SECTION WITH SUBTLE BACKGROUND GRAPHS & TELEMETRY */}
+      <section id="home" className="pt-14 pb-16 px-6 sm:px-12 bg-white relative overflow-hidden">
+        {/* Subtle Background Technical Graph Grid & Telemetry Coordinate Curves */}
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden select-none">
+          {/* Subtle Technical Grid Lines */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:48px_48px] opacity-70" />
+          
+          {/* Faint Vector Line Graph Overlay */}
+          <svg className="absolute w-full h-full opacity-[0.06] text-blue-600" viewBox="0 0 1440 600" fill="none" preserveAspectRatio="none">
+            <path
+              d="M0 450 Q 240 380, 480 410 T 960 280 T 1440 180"
+              stroke="currentColor"
+              strokeWidth="3"
+              fill="none"
+            />
+            <path
+              d="M0 500 Q 360 440, 720 460 T 1440 320"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              fill="none"
+            />
+            <path
+              d="M0 560 L 200 520 L 400 535 L 600 480 L 800 510 L 1000 430 L 1200 460 L 1440 390 L 1440 600 L 0 600 Z"
+              fill="currentColor"
+              opacity="0.3"
+            />
+            {/* Telemetry Coordinate Nodes */}
+            <circle cx="480" cy="410" r="6" fill="currentColor" />
+            <circle cx="960" cy="280" r="6" fill="currentColor" />
+            <circle cx="1200" cy="460" r="5" fill="currentColor" />
+          </svg>
+
+          {/* Faint Graph Watermark on Right */}
+          <div
+            className="absolute -right-20 top-1/2 -translate-y-1/2 w-[700px] h-[550px] opacity-[0.035] bg-cover bg-no-repeat bg-center"
+            style={{ backgroundImage: `url(${IMAGES.systemGraphMatrix})` }}
+          />
+        </div>
+
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             {/* Left Content Column */}
             <div className="lg:col-span-6 space-y-6">
@@ -184,7 +218,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
               </div>
 
               <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl font-normal">
-                Evaluate resumes with ATS precision, benchmark in-demand skills, practice structured mock interviews, and access end-to-end recruiter talent screening in one unified workspace.
+                Evaluate resumes with precision scoring, benchmark in-demand skills, practice structured mock interviews, and access end-to-end recruiter talent screening in one unified workspace.
               </p>
 
               {/* Action Buttons with framer motion feedback */}
@@ -455,11 +489,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
       <footer className="border-t border-slate-200 bg-slate-50 py-8 px-6 sm:px-12 text-xs text-slate-500 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md overflow-hidden border border-slate-200 bg-slate-900 shrink-0">
-              <img src={IMAGES.logo} alt="Career Lens Emblem" className="w-full h-full object-cover" />
-            </div>
-            <span className="font-bold text-slate-900">Career Lens</span>
-            <span>·</span>
+            <CareerLensLogo size="xs" showText={true} />
+            <span className="text-slate-300">·</span>
             <span>Smart Career &amp; Recruiter Intelligence</span>
           </div>
           <div className="flex items-center gap-6">
@@ -486,9 +517,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
             </button>
 
             <div className="text-center space-y-1 mb-5">
-              <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 mx-auto">
-                <img src={IMAGES.logo} alt="Career Lens Emblem" className="w-full h-full object-cover" />
-              </div>
+              <CareerLensLogo size="md" className="justify-center mx-auto" />
               <h2 className="text-lg font-black text-slate-900 pt-2">
                 {authTab === 'signin' ? 'Sign In to Career Lens' : 'Create Your Account'}
               </h2>
@@ -505,9 +534,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
               }}
               className="w-full py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 mb-4 transition"
             >
-              <div className="w-4 h-4 rounded-full overflow-hidden border border-slate-200 shrink-0">
-                <img src={IMAGES.logo} alt="Emblem" className="w-full h-full object-cover" />
-              </div>
+              <CareerLensLogo size="xs" />
               <span>Continue as Guest</span>
             </button>
 

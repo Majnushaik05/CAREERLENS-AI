@@ -135,6 +135,29 @@ export const JobDetectionView: React.FC = () => {
             </div>
           </div>
 
+          {/* Visual Risk Level Graph Meter */}
+          <div className="space-y-1.5 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="flex justify-between text-xs font-semibold">
+              <span className="text-slate-600">Calculated Threat Index</span>
+              <span className={`font-mono font-bold ${result.score >= 50 ? 'text-rose-600' : result.score >= 20 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {result.score}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  result.score >= 50 ? 'bg-rose-500' : result.score >= 20 ? 'bg-amber-500' : 'bg-emerald-500'
+                }`}
+                style={{ width: `${Math.min(100, Math.max(5, result.score))}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-400 font-bold pt-0.5">
+              <span className="text-emerald-600">Verified / Clean (0-19)</span>
+              <span className="text-amber-600">Suspicious (20-49)</span>
+              <span className="text-rose-600">High Risk Scam (50-100)</span>
+            </div>
+          </div>
+
           {result.signal_details?.length > 0 ? (
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">

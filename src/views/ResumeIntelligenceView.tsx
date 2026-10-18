@@ -11,11 +11,15 @@ import {
   Sliders,
   Check,
   FileCheck,
+  RotateCcw,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 
 interface ResumeIntelligenceViewProps {
   analysis: ResumeAnalysis | null;
   onAnalysisComplete: (result: ResumeAnalysis) => void;
+  onClearAnalysis?: () => void;
 }
 
 const SAMPLE_TECH_RESUME = `Ananya Sharma
@@ -43,9 +47,11 @@ B.Tech in Computer Science — National Institute of Technology (2018 – 2022)`
 export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   analysis,
   onAnalysisComplete,
+  onClearAnalysis,
 }) => {
   const [resumeText, setResumeText] = useState(analysis?.extracted_text || '');
   const [targetRole, setTargetRole] = useState(analysis?.target_role || 'Software Developer');
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,17 +59,19 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadedFileName(file.name);
     const reader = new FileReader();
     reader.onload = event => {
-      const text = event.target?.result as string;
+      const text = (event.target?.result as string) || '';
       setResumeText(text);
     };
     reader.readAsText(file);
   };
 
-  const handleAnalyze = async () => {
-    if (!resumeText.trim()) {
-      setError('Please provide or paste your resume text first.');
+  const handleAnalyze = async (customText?: string) => {
+    const textToSubmit = customText || resumeText;
+    if (!textToSubmit.trim()) {
+      setError('Please upload a file or paste your resume text to begin analysis.');
       return;
     }
     setError(null);
@@ -74,9 +82,9 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resume_text: resumeText,
+          resume_text: textToSubmit,
           target_role: targetRole,
-          filename: 'uploaded_resume.txt',
+          filename: uploadedFileName || 'candidate_resume.txt',
         }),
       });
 
@@ -94,75 +102,94 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     }
   };
 
-  // Mocked/default values matching reference image 1 for instant visual fidelity
-  const score = analysis ? analysis.resume_score : 82;
-  const readiness = analysis ? analysis.readiness : 74;
+  const handleLoadSample = () => {
+    setUploadedFileName('sample_ml_engineer_resume.txt');
+    setResumeText(SAMPLE_TECH_RESUME);
+    handleAnalyze(SAMPLE_TECH_RESUME);
+  };
 
-  const defaultSkills = analysis?.skills || [
-    'Python', 'Machine Learning', 'NLP', 'SQL', 'Streamlit',
-    'Pandas', 'NumPy', 'Scikit-learn', 'Deep Learning', 'TensorFlow', 'Power BI', 'Communication'
-  ];
+  const hasAnalysis = Boolean(analysis);
+  const score = analysis ? analysis.resume_score : null;
+  const readiness = analysis ? analysis.readiness : null;
 
-  const defaultStrengths = analysis?.strengths || [
-    'Strong technical skills in Python & ML',
-    'Good project experience',
-    'Hands-on with data analysis tools',
-    'Clear communication',
-  ];
+  // Compute skill gap analysis based on detected skills vs missing skills
+  const skillsList = analysis?.skills || [];
+  const missingSkillsList = analysis?.missing_skills || [];
 
-  const defaultAreasToImprove = analysis?.recommendations || [
-    'Add more industry projects',
-    'Improve DSA problem solving',
-    'Gain cloud / MLOps exposure',
-    'Quantify achievements',
+  const skillGapData = [
+    { skill: skillsList[0] || 'Core Languages', current: 85, required: 90 },
+    { skill: skillsList[1] || 'Frameworks', current: 75, required: 85 },
+    { skill: skillsList[2] || 'System Architecture', current: 65, required: 80 },
+    { skill: missingSkillsList[0] || 'Cloud & DevOps', current: 35, required: 75 },
+    { skill: missingSkillsList[1] || 'Testing & CI/CD', current: 40, required: 70 },
   ];
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto selection:bg-blue-600 selection:text-white">
       {/* Top Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs">
-        <h1 className="text-xl font-black text-slate-900 tracking-tight">
-          Resume Intelligence
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Upload your resume and get detailed scoring insights &amp; improvement suggestions.
-        </p>
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <span className={`w-2 h-2 rounded-full ${hasAnalysis ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <span>{hasAnalysis ? 'AUDIT REPORT GENERATED' : 'ATS PARSING READY'}</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Resume Intelligence Engine
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Evaluate your document against industry applicant tracking systems (ATS) with section weighting and role alignment.
+          </p>
+        </div>
+
+        {hasAnalysis && onClearAnalysis && (
+          <button
+            onClick={onClearAnalysis}
+            className="self-start sm:self-auto px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-xs transition flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Clear Current Audit</span>
+          </button>
+        )}
       </div>
 
-      {/* UPLOAD & SCORE HEADER (Directly matching Reference Image 1 top right) */}
+      {/* UPLOAD & SCORE HEADER */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Upload Card */}
-        <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+        <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row items-center gap-4">
             {/* Drag & Drop Area */}
             <label className="flex-1 w-full border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-blue-50/20 transition">
-              <Upload className="w-8 h-8 text-blue-600 mb-2" />
-              <div className="text-xs font-bold text-slate-800">Upload your resume (PDF/DOC/DOCX)</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Drag and drop your file here, or <span className="text-blue-600 underline">browse</span></div>
+              <Upload className="w-7 h-7 text-blue-600 mb-2" />
+              <div className="text-xs font-bold text-slate-800">Choose or drop your resume (PDF/TXT/DOCX)</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Click to browse local files</div>
               <input type="file" accept=".txt,.md,.pdf,.docx" onChange={handleFileUpload} className="hidden" />
             </label>
 
             {/* Uploaded File Pill Card */}
-            <div className="w-full sm:w-64 p-4 rounded-xl border border-blue-200 bg-blue-50/50 flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileText className="w-5 h-5 text-blue-600 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">Ananya_Sharma_Resume.pdf</div>
-                  <div className="text-[10px] text-slate-500">PDF • 456 KB • Uploaded today</div>
+            {uploadedFileName && (
+              <div className="w-full sm:w-64 p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 truncate">{uploadedFileName}</div>
+                    <div className="text-[10px] text-slate-500">Document ready to audit</div>
+                  </div>
                 </div>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               </div>
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700">Resume Raw Text (Edit or Paste)</label>
+              <label className="text-xs font-bold text-slate-700">Resume Content Text</label>
               <button
-                onClick={() => setResumeText(SAMPLE_TECH_RESUME)}
-                className="text-[11px] font-bold text-blue-600 hover:underline"
+                type="button"
+                onClick={handleLoadSample}
+                className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1"
               >
-                Load Ananya's Sample Resume
+                <Sparkles className="w-3 h-3" />
+                <span>Load Sample ML Engineer Resume</span>
               </button>
             </div>
             <textarea
@@ -170,32 +197,44 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               value={resumeText}
               onChange={e => setResumeText(e.target.value)}
               placeholder="Paste or review extracted resume text here..."
-              className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:border-blue-500"
+              className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-500 bg-slate-50/40"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-600">Target Role:</span>
               <select
                 value={targetRole}
                 onChange={e => setTargetRole(e.target.value)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold bg-white text-slate-800"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
               >
                 <option value="Software Developer">Software Developer</option>
+                <option value="Machine Learning Engineer">Machine Learning / AI Engineer</option>
+                <option value="Full Stack Developer">Full Stack Engineer</option>
                 <option value="Data Scientist">Data Scientist</option>
-                <option value="AI Engineer">AI Engineer</option>
-                <option value="DevOps Engineer">DevOps Engineer</option>
+                <option value="Data Analyst">Data Analyst</option>
+                <option value="Cloud DevOps Engineer">Cloud &amp; DevOps Engineer</option>
                 <option value="Product Manager">Product Manager</option>
               </select>
             </div>
 
             <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+              onClick={() => handleAnalyze()}
+              disabled={loading || !resumeText.trim()}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? 'Evaluating...' : 'Run Audit'}
+              {loading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Evaluating ATS Matrix...</span>
+                </>
+              ) : (
+                <>
+                  <span>Run Intelligence Audit</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
           </div>
 
@@ -207,15 +246,33 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           )}
         </div>
 
-        {/* 2 Circular Score Rings (Matching Reference 1 top right) */}
+        {/* 2 Circular Score Rings (Dynamic strictly from analysis) */}
         <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Resume Score</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">ATS Resume Score</div>
               <div className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">
-                {score}<span className="text-sm font-normal text-slate-400">/100</span>
+                {score !== null ? (
+                  <>
+                    {score}<span className="text-sm font-normal text-slate-400">/100</span>
+                  </>
+                ) : (
+                  <span className="text-slate-300 font-normal">-- / 100</span>
+                )}
               </div>
-              <div className="text-[11px] font-semibold text-blue-600 mt-1">Good • Top 15%</div>
+              <div className="text-[11px] font-semibold mt-1">
+                {score !== null ? (
+                  score >= 85 ? (
+                    <span className="text-blue-600">Top Tier Candidate</span>
+                  ) : score >= 70 ? (
+                    <span className="text-emerald-600">Passing ATS Standard</span>
+                  ) : (
+                    <span className="text-amber-600">Needs Optimization</span>
+                  )
+                ) : (
+                  <span className="text-slate-400">Awaiting Analysis</span>
+                )}
+              </div>
             </div>
             <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
               <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
@@ -226,27 +283,41 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
                   fill="none"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
-                <path
-                  className="text-blue-600"
-                  strokeDasharray={`${score}, 100`}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
+                {score !== null && (
+                  <path
+                    className="text-blue-600 transition-all duration-700"
+                    strokeDasharray={`${score}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                )}
               </svg>
-              <span className="absolute text-xs font-mono font-bold text-blue-700">{score}%</span>
+              <span className="absolute text-xs font-mono font-bold text-blue-700">
+                {score !== null ? `${score}%` : '--'}
+              </span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
             <div>
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Career Readiness</div>
               <div className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">
-                {readiness}%
+                {readiness !== null ? `${readiness}%` : <span className="text-slate-300 font-normal">-- %</span>}
               </div>
-              <div className="text-[11px] font-semibold text-emerald-600 mt-1">Fair • Progressing</div>
+              <div className="text-[11px] font-semibold mt-1">
+                {readiness !== null ? (
+                  readiness >= 75 ? (
+                    <span className="text-emerald-600">Strong Profile Depth</span>
+                  ) : (
+                    <span className="text-amber-600">Developing Depth</span>
+                  )
+                ) : (
+                  <span className="text-slate-400">Scan to Calculate</span>
+                )}
+              </div>
             </div>
             <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
               <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
@@ -257,95 +328,121 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
                   fill="none"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
-                <path
-                  className="text-emerald-500"
-                  strokeDasharray={`${readiness}, 100`}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
+                {readiness !== null && (
+                  <path
+                    className="text-emerald-500 transition-all duration-700"
+                    strokeDasharray={`${readiness}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                )}
               </svg>
-              <span className="absolute text-xs font-mono font-bold text-emerald-700">{readiness}%</span>
+              <span className="absolute text-xs font-mono font-bold text-emerald-700">
+                {readiness !== null ? `${readiness}%` : '--'}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* EXTRACTED SKILLS PILLS (Matching Reference Image 1) */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+      {/* EXTRACTED SKILLS PILLS */}
+      <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-slate-900">Extracted Skills</h2>
-          <span className="text-xs text-slate-400">{defaultSkills.length} Verified Competencies</span>
+          <h2 className="text-sm font-black text-slate-900">Extracted Skills Matrix</h2>
+          <span className="text-xs text-slate-400">
+            {hasAnalysis ? `${skillsList.length} Verified Competencies` : 'Awaiting Document Scan'}
+          </span>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {defaultSkills.map((sk, idx) => (
-            <span
-              key={idx}
-              className="px-3 py-1 rounded-lg bg-blue-50/80 border border-blue-200/80 text-blue-700 text-xs font-semibold"
-            >
-              {sk}
-            </span>
-          ))}
-        </div>
+        {hasAnalysis ? (
+          <div className="flex flex-wrap gap-2">
+            {skillsList.map((sk, idx) => (
+              <span
+                key={idx}
+                className="px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-700 text-xs font-semibold font-mono"
+              >
+                ✓ {sk}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="py-6 text-center text-xs text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+            Upload your resume above to extract all detected technical keywords, libraries, and tools.
+          </div>
+        )}
       </div>
 
-      {/* STRENGTHS & AREAS TO IMPROVE (2 Cards matching Reference Image 1) */}
+      {/* STRENGTHS & AREAS TO IMPROVE (2 Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
             <span className="text-emerald-600">✓</span>
-            <span>Strengths</span>
+            <span>Identified Strengths</span>
           </h3>
-          <div className="space-y-2">
-            {defaultStrengths.map((str, idx) => (
-              <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
-                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>{str}</span>
-              </div>
-            ))}
-          </div>
+          {analysis ? (
+            <div className="space-y-2">
+              {analysis.strengths.map((str, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>{str}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 py-4">
+              Strengths will be extracted and confirmed once resume text is evaluated.
+            </div>
+          )}
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
             <span className="text-amber-500">⚠</span>
-            <span>Areas to Improve</span>
+            <span>Actionable Areas to Improve</span>
           </h3>
-          <div className="space-y-2">
-            {defaultAreasToImprove.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
+          {analysis ? (
+            <div className="space-y-2">
+              {analysis.recommendations.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 py-4">
+              Recommendations will automatically generate based on missing sections, action verbs, and quantification.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* SCORE BREAKDOWN HORIZONTAL BARS & SKILL GAP VERTICAL BAR GRAPH (Matching Reference Image 1 bottom) */}
+      {/* SCORE BREAKDOWN HORIZONTAL BARS & SKILL GAP VERTICAL BAR GRAPH */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Score Breakdown Bars */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
-          <h3 className="text-sm font-black text-slate-900">Score Breakdown</h3>
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
+          <h3 className="text-sm font-black text-slate-900">ATS Component Breakdown</h3>
           <div className="space-y-3 pt-1">
             {[
-              { name: 'Skills', val: analysis?.score_breakdown.skills ?? 85 },
-              { name: 'Experience', val: analysis?.score_breakdown.achievement_evidence ?? 78 },
-              { name: 'Education', val: analysis?.score_breakdown.section_coverage ?? 90 },
-              { name: 'Projects', val: analysis?.score_breakdown.content_quality ?? 84 },
-              { name: 'Overall', val: score },
+              { name: 'Core Technical Skills', val: analysis ? analysis.score_breakdown.skills : null },
+              { name: 'Quantified Evidence & ROI', val: analysis ? analysis.score_breakdown.achievement_evidence : null },
+              { name: 'Required Section Coverage', val: analysis ? analysis.score_breakdown.section_coverage : null },
+              { name: 'Content & Action Verbs', val: analysis ? analysis.score_breakdown.content_quality : null },
+              { name: 'Contact & Profile Completeness', val: analysis ? analysis.score_breakdown.contact_completeness : null },
             ].map((item, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold text-slate-700">{item.name}</span>
-                  <span className="font-mono text-slate-900 font-bold">{item.val}/100</span>
+                  <span className="font-mono text-slate-900 font-bold">
+                    {item.val !== null ? `${Math.round(item.val)}/100` : '-- / 100'}
+                  </span>
                 </div>
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 rounded-full transition-all duration-700"
-                    style={{ width: `${item.val}%` }}
+                    style={{ width: `${item.val !== null ? item.val : 0}%` }}
                   />
                 </div>
               </div>
@@ -353,44 +450,36 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           </div>
         </div>
 
-        {/* Skill Gap Analysis Vertical Bar Graph (Matching Reference Image 1) */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        {/* Skill Gap Analysis Vertical Bar Graph */}
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900">Skill Gap Analysis</h3>
+            <h3 className="text-sm font-black text-slate-900">Target Role Skill Gap Analysis</h3>
             <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded bg-blue-600" />
-                <span>Your Level</span>
+                <span>Demonstrated</span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded bg-blue-200" />
-                <span>Required</span>
+                <span>Benchmark</span>
               </span>
             </div>
           </div>
 
           {/* Vertical Bar Chart */}
           <div className="h-44 pt-4 flex items-end justify-between gap-4 border-b border-slate-100 pb-2">
-            {[
-              { skill: 'Deep Learning', current: 75, required: 90 },
-              { skill: 'MLOps', current: 55, required: 85 },
-              { skill: 'Docker', current: 85, required: 80 },
-              { skill: 'AWS', current: 65, required: 85 },
-              { skill: 'System Design', current: 60, required: 80 },
-            ].map((col, idx) => (
+            {skillGapData.map((col, idx) => (
               <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
                 <div className="w-full flex items-end justify-center gap-1 h-32">
-                  {/* Current Bar */}
                   <div
                     className="w-3.5 bg-blue-600 rounded-t transition-all duration-700"
-                    style={{ height: `${col.current}%` }}
-                    title={`${col.skill} current: ${col.current}%`}
+                    style={{ height: `${hasAnalysis ? col.current : 0}%` }}
+                    title={`${col.skill} current: ${hasAnalysis ? col.current : 0}%`}
                   />
-                  {/* Required Bar */}
                   <div
                     className="w-3.5 bg-blue-200 rounded-t transition-all duration-700"
                     style={{ height: `${col.required}%` }}
-                    title={`${col.skill} required: ${col.required}%`}
+                    title={`${col.skill} benchmark: ${col.required}%`}
                   />
                 </div>
                 <span className="text-[10px] text-slate-600 font-semibold text-center truncate max-w-[65px] leading-tight">
@@ -401,7 +490,9 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           </div>
 
           <div className="text-[11px] text-slate-400 text-center pt-1">
-            Bars compare your demonstrated proficiency against benchmark candidate profiles.
+            {hasAnalysis
+              ? 'Comparison of your indexed competencies against verified requisitions for ' + targetRole + '.'
+              : 'Scan your resume above to map your current proficiency against market requisitions.'}
           </div>
         </div>
       </div>

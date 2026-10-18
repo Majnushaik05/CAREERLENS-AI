@@ -104,13 +104,23 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ analysis }
 
           {/* Phased Timeline Cards */}
           <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-2xs space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-slate-950 text-base">
-                Milestone Timeline toward {targetRole}
-              </h3>
-              <span className="text-xs text-slate-500 font-mono tabular-nums">
-                {Object.values(completedSteps).filter(Boolean).length} of {roadmapData.steps?.length || 5} Completed
-              </span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-extrabold text-slate-950 text-base">
+                  Milestone Timeline toward {targetRole}
+                </h3>
+                <span className="text-xs text-indigo-700 font-bold font-mono tabular-nums">
+                  {Object.values(completedSteps).filter(Boolean).length} of {roadmapData.steps?.length || 5} Completed ({Math.round(((Object.values(completedSteps).filter(Boolean).length) / Math.max(1, roadmapData.steps?.length || 5)) * 100)}%)
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200/60">
+                <div
+                  className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.round(((Object.values(completedSteps).filter(Boolean).length) / Math.max(1, roadmapData.steps?.length || 5)) * 100)}%`
+                  }}
+                />
+              </div>
             </div>
 
             <div className="space-y-3.5">

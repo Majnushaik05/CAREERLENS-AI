@@ -298,9 +298,27 @@ app.get('/health', (_req: Request, res: Response) => {
 // Resume analyze endpoint
 app.post('/api/resume/analyze', async (req: Request, res: Response) => {
   try {
-    const { resume_text = '', filename = 'resume.txt', target_role = '' } = req.body;
-    if (!resume_text || !resume_text.trim()) {
-      return res.status(422).json({ error: 'The uploaded resume contains no readable text.' });
+    let { resume_text = '', filename = 'resume.txt', target_role = '' } = req.body;
+    
+    // Clean and sanitize any binary/PDF artifacts
+    if (resume_text) {
+      if (resume_text.includes('%PDF-')) {
+        // Extract plain text segments from PDF
+        const textChunks: string[] = [];
+        const tjMatches = resume_text.match(/\(([^()]+)\)/g) || [];
+        for (const m of tjMatches) {
+          const s = m.slice(1, -1).trim();
+          if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) textChunks.push(s);
+        }
+        if (textChunks.length > 8) {
+          resume_text = textChunks.join(' ');
+        }
+      }
+      resume_text = resume_text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    if (!resume_text || resume_text.length < 5) {
+      return res.status(422).json({ error: 'The uploaded resume contains no readable text. Please paste text or try another file.' });
     }
 
     const localResult = analyzeResume(resume_text, filename, target_role);
@@ -321,7 +339,7 @@ Provide a concise JSON object with:
   "interview_readiness_verdict": "short readiness summary"
 }`;
         const response = await aiClient.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: prompt,
           config: { responseMimeType: 'application/json' },
         });
@@ -337,7 +355,7 @@ Provide a concise JSON object with:
           }
         }
       } catch (e) {
-        // Fallback to pure local analysis
+        // Fallback to pure local analysis gracefully
       }
     }
 
@@ -449,7 +467,7 @@ Candidate Resume Context (if any):
 ${resume_context ? resume_context.slice(0, 3000) : 'None provided yet'}`;
 
         const chat = aiClient.chats.create({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           config: { systemInstruction: sysPrompt },
         });
 
