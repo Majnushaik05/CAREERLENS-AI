@@ -409,23 +409,99 @@ app.post('/api/salary/estimate', (req: Request, res: Response) => {
   });
 });
 
-// Fraud Detection endpoint
+// Enhanced Job Scam & Fraud Detection endpoint (evaluates text and link)
 app.post('/api/job/fraud', (req: Request, res: Response) => {
-  const { text = '' } = req.body;
-  const lower = (text || '').toLowerCase();
-  const matched = Object.entries(RISK_PATTERNS)
-    .filter(([phrase]) => lower.includes(phrase))
+  const { text = '', link = '' } = req.body;
+  const lowerText = (text || '').toLowerCase();
+  const lowerLink = (link || '').trim().toLowerCase();
+
+  const textMatched = Object.entries(RISK_PATTERNS)
+    .filter(([phrase]) => lowerText.includes(phrase))
     .map(([_, desc]) => desc);
 
-  const score = Math.min(100, matched.length * 24);
-  const level = score >= 55 ? 'HIGH RISK' : score >= 25 ? 'MEDIUM RISK' : 'LOW RISK';
+  const linkSignals: string[] = [];
+  let linkRiskScore = 0;
+  let isLegitDomain = false;
+
+  if (lowerLink) {
+    if (lowerLink.startsWith('http://')) {
+      linkSignals.push('Insecure Protocol: Link uses unencrypted HTTP instead of HTTPS.');
+      linkRiskScore += 30;
+    }
+
+    const suspiciousLinkPatterns = [
+      { pattern: 't.me/', desc: 'Redirection to Telegram direct channel/chat for recruitment.' },
+      { pattern: 'telegram.me/', desc: 'Telegram direct redirect link.' },
+      { pattern: 'wa.me/', desc: 'Unverified WhatsApp direct messaging link.' },
+      { pattern: 'whatsapp.com/', desc: 'WhatsApp invite redirect link.' },
+      { pattern: 'bit.ly/', desc: 'Obfuscated URL shortener masking the true application destination.' },
+      { pattern: 'tinyurl.com/', desc: 'Shortened link hiding destination website.' },
+      { pattern: '.xyz/', desc: 'High-risk low-cost generic TLD frequently utilized in credential harvesting.' },
+      { pattern: '.top/', desc: 'Suspicious TLD often associated with unverified recruitment forms.' },
+      { pattern: '.icu/', desc: 'High-risk TLD often flagged for disposable scam domains.' },
+      { pattern: '.free.', desc: 'Free disposable domain hosting.' },
+      { pattern: 'weebly.com', desc: 'Free blog/site hosting used instead of official corporate portal.' },
+      { pattern: 'wixsite.com', desc: 'Unverified free site builder URL.' },
+      { pattern: 'forms.gle', desc: 'Generic Google Form used instead of corporate ATS or domain portal.' },
+      { pattern: 'amaz0n', desc: 'Typosquatting spoof of Amazon brand.' },
+      { pattern: 'g00gle', desc: 'Typosquatting spoof of Google brand.' },
+      { pattern: 'linked1n', desc: 'Typosquatting spoof of LinkedIn brand.' },
+    ];
+
+    suspiciousLinkPatterns.forEach(item => {
+      if (lowerLink.includes(item.pattern)) {
+        linkSignals.push(`Link Vulnerability: ${item.desc}`);
+        linkRiskScore += 35;
+      }
+    });
+
+    const verifiedAtsDomains = [
+      'careers.google.com', 'microsoft.com', 'amazon.jobs', 'apple.com', 'meta.com',
+      'greenhouse.io', 'lever.co', 'myworkdayjobs.com', 'smartrecruiters.com',
+      'ashbyhq.com', 'workable.com', 'jobvite.com', 'taleo.net', 'icims.com',
+      'oraclecloud.com', 'successfactors.com', 'stripe.com', 'netflix.com'
+    ];
+
+    isLegitDomain = verifiedAtsDomains.some(d => lowerLink.includes(d));
+    if (isLegitDomain) {
+      linkRiskScore = Math.max(0, linkRiskScore - 40);
+    }
+  }
+
+  const allSignals = [...textMatched, ...linkSignals];
+  const combinedThreat = Math.min(100, (textMatched.length * 25) + linkRiskScore);
+  
+  let level = 'LOW RISK';
+  let isReal = true;
+  let verdict = 'Verified & Legitimate Requisition: No scam signals detected.';
+
+  if (combinedThreat >= 50 || linkSignals.length >= 2 || textMatched.length >= 2) {
+    level = 'HIGH RISK';
+    isReal = false;
+    verdict = 'Fake Job / Scam Alert: Severe recruitment fraud patterns and high-risk URL flags discovered.';
+  } else if (combinedThreat >= 20 || linkSignals.length >= 1 || textMatched.length >= 1) {
+    level = 'MEDIUM RISK';
+    isReal = false;
+    verdict = 'Caution / Suspicious Requisition: Unverified communication or anomalous listing terms detected.';
+  } else {
+    level = 'LOW RISK';
+    isReal = true;
+    verdict = isLegitDomain 
+      ? 'Verified Legitimate Job: Official corporate hiring portal and clean requisition standards confirmed.'
+      : 'Authentic & Safe Requisition: Process adheres to standard hiring protocol with no fraud patterns.';
+  }
 
   return res.json({
-    score,
+    score: combinedThreat,
     level,
-    signals: matched.length,
-    signal_details: matched,
-    verdict: score >= 55 ? 'Warning: Severe recruitment red flags detected!' : score >= 25 ? 'Caution: Potential unsolicited recruitment risk.' : 'Safe: No immediate fraud patterns detected.',
+    is_real: isReal,
+    signals: allSignals.length,
+    signal_details: allSignals,
+    link_audited: !!lowerLink,
+    link_signals: linkSignals,
+    text_signals: textMatched,
+    is_legit_domain: isLegitDomain,
+    verdict,
     source: 'careerlens-fraud-engine',
   });
 });

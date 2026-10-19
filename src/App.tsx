@@ -239,8 +239,12 @@ Required competencies:
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      <Navbar
+    <div className="min-h-screen bg-slate-50/60 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative">
+      {/* Subtle Positional Architecture Graph Background */}
+      <div className="fixed inset-0 bg-graph-matrix pointer-events-none opacity-25 z-0" />
+
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <Navbar
         workspace={workspace}
         onSwitchWorkspace={ws => {
           setWorkspace(ws);
@@ -268,6 +272,7 @@ Required competencies:
           {renderActiveTool()}
         </main>
       </div>
+    </div>
     </div>
   );
 };

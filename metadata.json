@@ -1,6 +1,6 @@
 {
-  "name": "CareerLens AI",
-  "description": "AI-powered career intelligence, resume scoring, job matching, roadmaps, interview prep, and recruiter talent platform.",
+  "name": "Career Lens",
+  "description": "Career Lens: AI-powered career intelligence, resume scoring, interactive visual roadmaps, voice mock interviews, job scam detection, and recruiter talent platform.",
   "permissions": [],
   "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

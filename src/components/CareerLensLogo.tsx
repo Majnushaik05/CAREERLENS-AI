@@ -16,80 +16,137 @@ export const CareerLensLogo: React.FC<CareerLensLogoProps> = ({
   className = '',
 }) => {
   const sizeMap = {
-    xs: { box: 'w-6 h-6', svg: 24, font: 'text-sm' },
-    sm: { box: 'w-7 h-7', svg: 28, font: 'text-sm' },
-    md: { box: 'w-9 h-9', svg: 36, font: 'text-base' },
-    lg: { box: 'w-11 h-11', svg: 44, font: 'text-lg' },
-    xl: { box: 'w-14 h-14', svg: 56, font: 'text-2xl' },
+    xs: { box: 'w-7 h-7', svg: 26, font: 'text-xs' },
+    sm: { box: 'w-8 h-8', svg: 30, font: 'text-sm' },
+    md: { box: 'w-10 h-10', svg: 38, font: 'text-base' },
+    lg: { box: 'w-12 h-12', svg: 46, font: 'text-lg' },
+    xl: { box: 'w-16 h-16', svg: 60, font: 'text-2xl' },
   };
 
   const current = sizeMap[size];
 
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
-      {/* Executive Optical Lens Mark */}
+      {/* High-Precision Black & Electric Blue Optical Lens Emblem */}
       <div
-        className={`${current.box} rounded-xl bg-slate-950 border border-slate-800 shadow-sm flex items-center justify-center shrink-0 relative overflow-hidden group`}
+        className={`${current.box} rounded-xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 border border-slate-800 shadow-sm flex items-center justify-center shrink-0 relative overflow-hidden group hover:border-blue-500 hover:shadow-[0_0_16px_rgba(37,99,235,0.25)] transition-all duration-300`}
       >
+        {/* Subtle internal refraction flare with electric blue glint */}
+        <div className="absolute inset-0 bg-radial from-blue-500/20 via-transparent to-transparent opacity-70 pointer-events-none" />
+
         <svg
-          viewBox="0 0 32 32"
+          viewBox="0 0 40 40"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full p-1"
+          className="w-full h-full p-1 relative z-10"
         >
-          {/* Dual Precision Interlocking Optical Lenses */}
-          {/* Primary Focus Ring */}
+          <defs>
+            {/* Deep Obsidian Black to Vivid Electric Blue Gradient */}
+            <linearGradient id="lensBlackBlueGrad" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#0F172A" />
+              <stop offset="45%" stopColor="#1E3A8A" />
+              <stop offset="100%" stopColor="#2563EB" />
+            </linearGradient>
+
+            {/* Electric Blue Core Gradient */}
+            <linearGradient id="electricBlueGrad" x1="6" y1="6" x2="34" y2="34" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#60A5FA" />
+              <stop offset="50%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
+            </linearGradient>
+
+            {/* Inner Refractive Prism Lens */}
+            <linearGradient id="lensIrisGrad" x1="12" y1="12" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#0F172A" stopOpacity="0.85" />
+            </linearGradient>
+
+            {/* Rising Career Trajectory Gradient */}
+            <linearGradient id="vectorGrad" x1="20" y1="18" x2="33" y2="7" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#3B82F6" />
+              <stop offset="100%" stopColor="#93C5FD" />
+            </linearGradient>
+          </defs>
+
+          {/* Calibrated Bezel Ring - Obsidian with Blue Accent */}
           <circle
-            cx="13.5"
-            cy="16"
-            r="8"
-            stroke="#3B82F6"
-            strokeWidth="2.2"
+            cx="19"
+            cy="21"
+            r="13"
+            stroke="#1E293B"
+            strokeWidth="2.4"
           />
-          
-          {/* Secondary Convergence Lens */}
+
+          {/* Electric Blue Optical Outer Track */}
           <circle
-            cx="18.5"
-            cy="16"
-            r="8"
-            stroke="#06B6D4"
-            strokeWidth="2.2"
+            cx="19"
+            cy="21"
+            r="12.2"
+            stroke="url(#electricBlueGrad)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+
+          {/* Secondary Precision Convergence Ring */}
+          <circle
+            cx="22"
+            cy="21"
+            r="9.5"
+            stroke="#60A5FA"
+            strokeWidth="1.2"
+            strokeDasharray="2 3"
             strokeOpacity="0.9"
           />
 
-          {/* Central High-Precision Focal Iris */}
+          {/* Optical Iris Aperture - Black & Blue Refractive Core */}
           <path
-            d="M16 11.2C17.6 12.8 18.5 14.3 18.5 16C18.5 17.7 17.6 19.2 16 20.8C14.4 19.2 13.5 17.7 13.5 16C13.5 14.3 14.4 12.8 16 11.2Z"
-            fill="#2563EB"
+            d="M19 14.5C21.2 16.7 22.5 18.8 22.5 21C22.5 23.2 21.2 25.3 19 27.5C16.8 25.3 15.5 23.2 15.5 21C15.5 18.8 16.8 16.7 19 14.5Z"
+            fill="url(#lensIrisGrad)"
+            stroke="#2563EB"
+            strokeWidth="0.8"
           />
-          
-          {/* Central White Optical Core */}
+
+          {/* High-Contrast Focal Core */}
           <circle
-            cx="16"
-            cy="16"
-            r="1.8"
+            cx="19"
+            cy="21"
+            r="2.8"
+            fill="#0F172A"
+            stroke="#60A5FA"
+            strokeWidth="1.2"
+          />
+          <circle
+            cx="18.3"
+            cy="20.3"
+            r="0.9"
             fill="#FFFFFF"
           />
 
-          {/* Upward Career Progression Beam */}
+          {/* Upward Career Trajectory Vector - Electric Blue Arrow */}
           <path
-            d="M21 11L25 7M25 7H21.5M25 7V10.5"
-            stroke="#10B981"
-            strokeWidth="2"
+            d="M25 15L33 7M33 7H27.5M33 7V12.5"
+            stroke="url(#vectorGrad)"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+
+          {/* Micro Optical Calibration Points */}
+          <circle cx="33" cy="7" r="1.3" fill="#60A5FA" />
+          <circle cx="9" cy="31" r="1.3" fill="#2563EB" stroke="#0F172A" strokeWidth="0.6" />
         </svg>
       </div>
 
-      {/* Modern High-End Wordmark */}
+      {/* Modern Wordmark: Career (Black) + Lens (Electric Blue) */}
       {showText && (
-        <div className="flex items-center gap-1.5">
-          <span className={`font-black tracking-tight text-slate-950 ${current.font} ${textClassName}`}>
-            Career<span className="text-blue-600 ml-1">Lens</span>
-          </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-baseline">
+            <span className={`font-black tracking-tight text-slate-950 ${current.font} ${textClassName}`}>
+              Career<span className="text-blue-600 ml-0.5">Lens</span>
+            </span>
+          </div>
           {badge && (
-            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-[10px] font-extrabold font-mono tracking-wider px-1.5 py-0.5 rounded-md bg-slate-900 text-blue-400 border border-slate-800 shadow-2xs">
               {badge}
             </span>
           )}

@@ -218,7 +218,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
               </div>
 
               <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl font-normal">
-                Evaluate resumes with precision scoring, benchmark in-demand skills, practice structured mock interviews, and access end-to-end recruiter talent screening in one unified workspace.
+                Evaluate resumes with precision scoring, benchmark in-demand skills, practice structured mock interviews, detect scam job links, and access recruiter talent screening.
               </p>
 
               {/* Action Buttons with framer motion feedback */}

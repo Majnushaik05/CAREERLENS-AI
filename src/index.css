@@ -7,7 +7,54 @@
     color: #0f172a;
     margin: 0;
     padding: 0;
+    /* Subtle architectural engineering coordinate grid */
+    background-image: 
+      radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.14) 1px, transparent 0),
+      linear-gradient(to right, rgba(226, 232, 240, 0.25) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(226, 232, 240, 0.25) 1px, transparent 1px);
+    background-size: 32px 32px, 128px 128px, 128px 128px;
+    background-position: 0 0, 0 0, 0 0;
+    background-attachment: fixed;
   }
+}
+
+/* Positional Graph Matrix Background Class for Containers */
+.bg-graph-matrix {
+  background-image: 
+    linear-gradient(to right, rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 2px 2px, rgba(99, 102, 241, 0.08) 1.5px, transparent 0);
+  background-size: 24px 24px, 24px 24px, 48px 48px;
+}
+
+/* Topological Roadmap Flow Rail */
+@keyframes roadmapFlow {
+  0% {
+    stroke-dashoffset: 60;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-roadmap-path {
+  stroke-dasharray: 6 6;
+  animation: roadmapFlow 2.8s linear infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.3;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.4s ease-in-out infinite;
 }
 
 /* Smooth continuous marquee scroll */
