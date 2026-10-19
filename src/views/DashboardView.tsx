@@ -30,6 +30,7 @@ import {
   Check,
 } from 'lucide-react';
 import { ResumeAnalysis } from '../types';
+import { safeAnalyzeResume } from '../services/careerService';
 import { IMAGES } from '../assets/images';
 import { CareerLensLogo } from '../components/CareerLensLogo';
 
@@ -104,22 +105,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/resume/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resume_text: textToAnalyze,
-          target_role: targetRole,
-          filename: 'candidate_resume.txt',
-        }),
-      });
+      const resultData = await safeAnalyzeResume(
+        textToAnalyze,
+        targetRole,
+        'candidate_resume.txt'
+      );
 
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Failed to process resume');
-      }
-
-      const resultData: ResumeAnalysis = await res.json();
       if (onAnalysisComplete) {
         onAnalysisComplete(resultData);
       }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ResumeAnalysis, InterviewQuestionItem, InterviewScore } from '../types';
+import { safeGetMockQuestion, safeScoreMockInterview } from '../services/careerService';
 import {
   Mic,
   MicOff,
@@ -16,6 +17,7 @@ import {
   Square,
   Radio,
   FileCheck,
+  Headphones,
 } from 'lucide-react';
 
 interface MockInterviewViewProps {
@@ -28,6 +30,7 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [currentAnswer, setCurrentAnswer] = useState('');
+  const [interimText, setInterimText] = useState('');
   const [transcript, setTranscript] = useState<InterviewQuestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [interviewScore, setInterviewScore] = useState<InterviewScore | null>(null);
@@ -37,54 +40,15 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [micStatusMsg, setMicStatusMsg] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Initialize Speech Recognition
+  // Clean up speech recognition & synthesis on unmount
   useEffect(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-
-        if (finalTranscript) {
-          setCurrentAnswer(prev => {
-            const trimmed = prev.trim();
-            return trimmed ? `${trimmed} ${finalTranscript.trim()}` : finalTranscript.trim();
-          });
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    } else {
+    if (!SpeechRecognition) {
       setSpeechSupported(false);
     }
 
@@ -94,7 +58,7 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
       }
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.stop();
+          recognitionRef.current.abort();
         } catch {
           // ignore
         }
@@ -128,22 +92,130 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
     }
   };
 
-  // Toggle Microphone input for candidate
-  const toggleListening = () => {
-    if (!recognitionRef.current) return;
+  // Ultra-reliable speech recognition start
+  const startListening = async () => {
+    stopSpeaking();
+    setMicStatusMsg(null);
+    setInterimText('');
 
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      stopSpeaking();
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (err) {
-        console.warn('Could not start recognition:', err);
-      }
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      setMicStatusMsg('Speech recognition is not supported in this browser. You can type or use the "Dictate STAR Answer" button.');
+      return;
     }
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (permErr: any) {
+          console.warn('Microphone permission check:', permErr);
+        }
+      }
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setMicStatusMsg('Microphone listening live... Speak your response clearly.');
+      };
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        let finalized = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const trans = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalized += trans + ' ';
+          } else {
+            interim += trans;
+          }
+        }
+
+        setInterimText(interim);
+
+        if (finalized.trim()) {
+          setCurrentAnswer(prev => {
+            const p = prev.trim();
+            return p ? `${p} ${finalized.trim()}` : finalized.trim();
+          });
+          setInterimText('');
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition event error:', event.error);
+        if (event.error === 'not-allowed') {
+          setMicStatusMsg('Microphone permission denied by browser. Please allow microphone access or use keyboard / sample dictation.');
+        } else if (event.error === 'no-speech') {
+          setMicStatusMsg('No speech detected. Please speak closer to your microphone.');
+        } else {
+          setMicStatusMsg(`Audio note: ${event.error}. You can also type directly.`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimText('');
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.warn('Could not start recognition:', err);
+      setIsListening(false);
+      setMicStatusMsg('Microphone could not be started in this browser context. You can type or use sample dictation.');
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+    setIsListening(false);
+    if (interimText.trim()) {
+      setCurrentAnswer(prev => (prev.trim() ? `${prev.trim()} ${interimText.trim()}` : interimText.trim()));
+      setInterimText('');
+    }
+    setMicStatusMsg('Microphone paused. Review and submit your answer.');
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  // Sample STAR Answer Dictation helper for flawless demo and fallback
+  const handleDictateSample = () => {
+    const starResponses: Record<number, string> = {
+      0: `In my engineering background, I have focused on scalable web architecture and data systems. For instance, at my previous organization, I led the redesign of our core API layer using FastAPI, PostgreSQL, and Redis, which reduced latency by 35% and supported over 100,000 active sessions.`,
+      1: `I chose the ${role} path because I thrive on architecting distributed solutions that solve critical business bottlenecks. Joining ${company || 'your organization'} offers the opportunity to apply these problem-solving skills to high-impact production challenges.`,
+      2: `During a high-concurrency production event, our database connection pool became saturated due to unindexed queries. I immediately introduced read replicas, optimized queries with composite indexes, and implemented circuit breakers, preventing cascading service outages.`,
+      3: `When faced with competing sprint priorities, I align with team leads using impact-effort scoring. I prioritize mission-critical reliability fixes first, followed by feature deliverables, ensuring clear visibility through daily standups and updated ticket metrics.`,
+    };
+
+    const sample = starResponses[transcript.length] || `I prioritize test-driven development, continuous integration, and clean modular code architecture to ensure high maintainability and low defect density.`;
+    setCurrentAnswer(sample);
+    setMicStatusMsg('Sample STAR answer transcribed into answer box.');
   };
 
   const startInterview = async () => {
@@ -151,17 +223,7 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
     setTranscript([]);
     setInterviewScore(null);
     try {
-      const res = await fetch('/api/mock-interview/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role,
-          company,
-          resume_text: analysis?.extracted_text || '',
-          transcript: [],
-        }),
-      });
-      const data = await res.json();
+      const data = await safeGetMockQuestion(role, company, analysis?.extracted_text || '', []);
       const question =
         data.next_question ||
         `Please introduce yourself and explain your relevant engineering background for the ${role} position.`;
@@ -169,7 +231,7 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
       setInterviewStarted(true);
 
       if (voiceEnabled) {
-        setTimeout(() => speakText(question), 300);
+        setTimeout(() => speakText(`Welcome to your Career Lens mock interview for ${role}. Here is your first question: ${question}`), 400);
       }
     } catch (err) {
       console.error(err);
@@ -179,18 +241,18 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
   };
 
   const handleSendAnswer = async () => {
-    if (!currentAnswer.trim()) return;
+    const fullAnswer = (currentAnswer + ' ' + interimText).trim();
+    if (!fullAnswer) return;
 
-    if (isListening && recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch {}
-      setIsListening(false);
+    if (isListening) {
+      stopListening();
     }
 
-    const updated = [...transcript, { question: currentQuestion, answer: currentAnswer }];
+    const updated = [...transcript, { question: currentQuestion, answer: fullAnswer }];
     setTranscript(updated);
     setCurrentAnswer('');
+    setInterimText('');
+    setMicStatusMsg(null);
     setLoading(true);
     stopSpeaking();
 
@@ -201,24 +263,23 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
     }
 
     try {
-      const res = await fetch('/api/mock-interview/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role,
-          company,
-          resume_text: analysis?.extracted_text || '',
-          transcript: updated,
-        }),
-      });
-      const data = await res.json();
+      const data = await safeGetMockQuestion(role, company, analysis?.extracted_text || '', updated);
       const nextQ =
         data.next_question ||
         'What is an architectural or technical tradeoff you evaluated recently?';
       setCurrentQuestion(nextQ);
 
+      const feedbackPhrases = [
+        "Thank you for that response. Strong context and clear technical ownership.",
+        "Understood. Good emphasis on technical impact and problem resolution.",
+        "Excellent response. Let's move deeper into your practical experience.",
+        "Thank you for sharing that experience. Here is the next evaluation question.",
+      ];
+      const feedback = feedbackPhrases[updated.length % feedbackPhrases.length];
+      const fullSpeech = `${feedback} Next question: ${nextQ}`;
+
       if (voiceEnabled) {
-        setTimeout(() => speakText(nextQ), 400);
+        setTimeout(() => speakText(fullSpeech), 400);
       }
     } catch (err) {
       console.error(err);
@@ -229,17 +290,12 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
 
   const scoreInterview = async (t: InterviewQuestionItem[]) => {
     try {
-      const res = await fetch('/api/mock-interview/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: t, role }),
-      });
-      const score: InterviewScore = await res.json();
+      const score = await safeScoreMockInterview(t, role);
       setInterviewScore(score);
 
       if (voiceEnabled) {
         speakText(
-          `Your mock interview has been evaluated with an overall rating of ${score.overall} out of 100.`
+          `Your mock interview evaluation is complete with an overall score of ${score.overall} out of 100.`
         );
       }
     } catch (err) {
@@ -462,12 +518,15 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
                 </div>
               </div>
 
-              {/* Textarea for Candidate response */}
+              {/* Textarea for Candidate response with live interim speech preview */}
               <div className="relative">
                 <textarea
                   rows={5}
-                  value={currentAnswer}
-                  onChange={e => setCurrentAnswer(e.target.value)}
+                  value={currentAnswer + (interimText ? (currentAnswer ? ' ' + interimText : interimText) : '')}
+                  onChange={e => {
+                    setCurrentAnswer(e.target.value);
+                    setInterimText('');
+                  }}
                   placeholder="Click 'Speak with Microphone' to record your answer by voice, or type your response here..."
                   className={`w-full p-4 rounded-xl border text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition ${
                     isListening
@@ -476,45 +535,81 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
                   }`}
                 />
 
-                {/* Microphone Recording Live Indicator */}
+                {/* Microphone Recording Live Indicator with sound pulses */}
                 {isListening && (
-                  <div className="absolute bottom-3 left-3 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-md text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 shadow-2xs">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
-                    <span>Microphone Listening... Speak your answer</span>
+                  <div className="absolute bottom-3 left-3 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg text-[11px] font-bold text-emerald-800 flex items-center gap-2 shadow-sm">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping" />
+                    <span>Listening... Speak your answer now</span>
+                    <span className="font-mono text-[10px] text-emerald-600 bg-emerald-200/60 px-1.5 py-0.5 rounded">Live Audio</span>
                   </div>
                 )}
               </div>
 
+              {/* Status message for microphone permissions or dictation */}
+              {micStatusMsg && (
+                <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                  micStatusMsg.includes('denied') || micStatusMsg.includes('not supported')
+                    ? 'bg-amber-50 border-amber-200 text-amber-800'
+                    : 'bg-blue-50 border-blue-200 text-blue-800'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>{micStatusMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMicStatusMsg(null)}
+                    className="text-[11px] font-bold text-slate-400 hover:text-slate-700"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
               {/* Action Toolbar */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Microphone Speech-to-Text Button */}
                   <button
                     type="button"
                     onClick={toggleListening}
                     className={`px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
                       isListening
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-400'
+                        : 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs'
                     }`}
                   >
                     {isListening ? (
                       <>
                         <MicOff className="w-4 h-4 text-white" />
-                        <span>Stop Voice Recording</span>
+                        <span>Done Speaking (Stop Mic)</span>
                       </>
                     ) : (
                       <>
                         <Mic className="w-4 h-4 text-purple-600" />
-                        <span>Speak Answer via Microphone</span>
+                        <span>Speak Answer (Voice Mic)</span>
                       </>
                     )}
+                  </button>
+
+                  {/* 1-Click Dictate Sample STAR Response for quick voice testing */}
+                  <button
+                    type="button"
+                    onClick={handleDictateSample}
+                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 flex items-center gap-1.5 transition"
+                    title="Insert role-tailored STAR model response"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Dictate STAR Answer</span>
                   </button>
 
                   {currentAnswer.trim() && (
                     <button
                       type="button"
-                      onClick={() => setCurrentAnswer('')}
+                      onClick={() => {
+                        setCurrentAnswer('');
+                        setInterimText('');
+                      }}
                       className="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1"
                     >
                       Clear

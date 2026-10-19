@@ -43,16 +43,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isSeeker = workspace === 'Job Seeker Workspace';
 
   const seekerTools = [
-    { name: 'Dashboard', icon: LayoutDashboard, tag: 'Overview' },
-    { name: 'Resume Intelligence', icon: FileText, tag: 'ATS Audit' },
-    { name: 'Pre-Interview Assessment', icon: GraduationCap, tag: 'Practice' },
-    { name: 'Mock Interview', icon: Mic, tag: 'STAR Prep' },
-    { name: 'Job Match', icon: Target, tag: 'Alignment' },
-    { name: 'Salary Estimation', icon: DollarSign, tag: 'Market' },
-    { name: 'Career Roadmap', icon: Route, tag: 'Growth' },
+    { name: 'Dashboard', icon: LayoutDashboard, tag: 'Home' },
+    { name: 'Resume Intelligence', icon: FileText, tag: 'Audit' },
+    { name: 'Pre-Interview Assessment', icon: GraduationCap, tag: 'Test' },
+    { name: 'Mock Interview', icon: Mic, tag: 'Voice Mock' },
+    { name: 'Job Match', icon: Target, tag: 'Match' },
+    { name: 'Salary Estimation', icon: DollarSign, tag: 'Salary' },
+    { name: 'Career Roadmap', icon: Route, tag: 'Roadmap' },
     { name: 'Job Detection', icon: ShieldAlert, tag: 'Safety' },
-    { name: 'Resume Builder', icon: PenTool, tag: 'Editor' },
-    { name: 'Career Assistant', icon: Bot, tag: 'Advisor' },
+    { name: 'Resume Builder', icon: PenTool, tag: 'Builder' },
+    { name: 'Career Assistant', icon: Bot, tag: 'Assistant' },
   ];
 
   const recruiterTools = [

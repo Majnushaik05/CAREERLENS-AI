@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ResumeAnalysis } from '../types';
+import { safeAnalyzeResume } from '../services/careerService';
 import {
   FileText,
   Upload,
@@ -78,22 +79,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/resume/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resume_text: textToSubmit,
-          target_role: targetRole,
-          filename: uploadedFileName || 'candidate_resume.txt',
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to analyze resume');
-      }
-
-      const data: ResumeAnalysis = await res.json();
+      const data = await safeAnalyzeResume(
+        textToSubmit,
+        targetRole,
+        uploadedFileName || 'candidate_resume.txt'
+      );
       onAnalysisComplete(data);
     } catch (err: any) {
       setError(err.message || 'An error occurred during analysis.');
@@ -130,14 +120,14 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
       <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-            <span className={`w-2 h-2 rounded-full ${hasAnalysis ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-            <span>{hasAnalysis ? 'AUDIT REPORT GENERATED' : 'ATS PARSING READY'}</span>
+            <span className={`w-2 h-2 rounded-full ${hasAnalysis ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`} />
+            <span>{hasAnalysis ? 'AUDIT REPORT GENERATED' : 'READY TO AUDIT'}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Resume Intelligence Engine
+            Resume Intelligence
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Evaluate your document against industry applicant tracking systems (ATS) with section weighting and role alignment.
+            Evaluate your document with section weighting, key competencies, and target role alignment.
           </p>
         </div>
 
@@ -227,7 +217,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               {loading ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Evaluating ATS Matrix...</span>
+                  <span>Evaluating Resume Metrics...</span>
                 </>
               ) : (
                 <>
@@ -250,7 +240,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
         <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">ATS Resume Score</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overall Score</div>
               <div className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">
                 {score !== null ? (
                   <>
@@ -263,11 +253,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               <div className="text-[11px] font-semibold mt-1">
                 {score !== null ? (
                   score >= 85 ? (
-                    <span className="text-blue-600">Top Tier Candidate</span>
+                    <span className="text-blue-600">Top Tier Match</span>
                   ) : score >= 70 ? (
-                    <span className="text-emerald-600">Passing ATS Standard</span>
+                    <span className="text-emerald-600">Strong Role Alignment</span>
                   ) : (
-                    <span className="text-amber-600">Needs Optimization</span>
+                    <span className="text-amber-600">Optimization Recommended</span>
                   )
                 ) : (
                   <span className="text-slate-400">Awaiting Analysis</span>
@@ -423,7 +413,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Score Breakdown Bars */}
         <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
-          <h3 className="text-sm font-black text-slate-900">ATS Component Breakdown</h3>
+          <h3 className="text-sm font-black text-slate-900">Resume Quality Breakdown</h3>
           <div className="space-y-3 pt-1">
             {[
               { name: 'Core Technical Skills', val: analysis ? analysis.score_breakdown.skills : null },

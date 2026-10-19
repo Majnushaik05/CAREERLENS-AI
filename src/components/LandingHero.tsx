@@ -439,7 +439,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
                 <FileText className="w-5 h-5" />
               </div>
               <h3 className="font-bold text-xs text-slate-900">Resume Intelligence</h3>
-              <p className="text-[11px] text-slate-500 leading-tight">Instant ATS feedback &amp; circular ring scoring</p>
+              <p className="text-[11px] text-slate-500 leading-tight">Instant resume feedback &amp; circular ring scoring</p>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs text-center space-y-2 hover:border-purple-300 transition">

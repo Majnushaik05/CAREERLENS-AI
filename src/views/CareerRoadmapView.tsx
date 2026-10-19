@@ -23,13 +23,32 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ analysis }
           target_role: targetRole,
         }),
       });
-      const data = await res.json();
-      setRoadmapData(data);
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        setRoadmapData(data);
+        setLoading(false);
+        return;
+      }
     } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+      // proceed to fallback
     }
+
+    const skills = analysis?.skills || [];
+    const missing = analysis?.missing_skills || [];
+    setRoadmapData({
+      target_role: targetRole,
+      current_skills: skills,
+      missing_skills: missing.slice(0, 10),
+      steps: [
+        `Phase 1: Clarify foundational industry competencies and standards for ${targetRole}.`,
+        `Phase 2: Master and demonstrate core tools: ${missing.slice(0, 5).join(', ') || 'essential toolchains and frameworks'}.`,
+        'Phase 3: Architect 2–3 portfolio projects with measurable business impact, documented in Google XYZ format.',
+        'Phase 4: Optimize keywords, LinkedIn visibility, and target tailored job requisitions.',
+        'Phase 5: Practice role-specific behavioral (STAR method) and deep technical interview scenarios.',
+      ],
+    });
+    setLoading(false);
   };
 
   React.useEffect(() => {

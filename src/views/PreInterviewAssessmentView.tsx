@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AssessmentQuestion, AssessmentResult } from '../types';
+import { safeGenerateAssessment, safeScoreAssessment } from '../services/careerService';
 import {
   GraduationCap,
   Play,
@@ -31,12 +32,7 @@ export const PreInterviewAssessmentView: React.FC = () => {
     setReviewMode(false);
 
     try {
-      const res = await fetch('/api/assessment/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, question_count: questionCount }),
-      });
-      const data = await res.json();
+      const data = await safeGenerateAssessment(role, questionCount);
       setQuestions(data.questions || []);
       setInProgress(true);
     } catch (e) {
@@ -49,12 +45,7 @@ export const PreInterviewAssessmentView: React.FC = () => {
   const handleFinish = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/assessment/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions, answers }),
-      });
-      const data: AssessmentResult = await res.json();
+      const data: AssessmentResult = await safeScoreAssessment(questions, answers);
       setResult(data);
       setInProgress(false);
     } catch (e) {

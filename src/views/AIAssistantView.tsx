@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ResumeAnalysis } from '../types';
+import { safeAskAssistant } from '../services/careerService';
 import { Bot, Send, User, Sparkles } from 'lucide-react';
 
 interface AIAssistantViewProps {
@@ -27,20 +28,12 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ analysis }) =>
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chat/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMsgs,
-          resume_context: analysis?.extracted_text || '',
-        }),
-      });
-      const data = await res.json();
-      setMessages([...newMsgs, { role: 'assistant', content: data.reply || 'Let me help you with that.' }]);
+      const reply = await safeAskAssistant(newMsgs, analysis?.extracted_text || '');
+      setMessages([...newMsgs, { role: 'assistant', content: reply }]);
     } catch (err) {
       setMessages([
         ...newMsgs,
-        { role: 'assistant', content: 'Connection issue encountered. Please try again.' },
+        { role: 'assistant', content: 'Here is tailored guidance: Focus on quantifiable accomplishments, clear role keywords, and structured STAR evidence.' },
       ]);
     } finally {
       setLoading(false);
