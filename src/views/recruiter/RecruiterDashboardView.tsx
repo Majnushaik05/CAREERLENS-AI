@@ -44,10 +44,10 @@ export const RecruiterDashboardView: React.FC<RecruiterDashboardViewProps> = ({
   ).length;
 
   // Real score brackets computed strictly from active candidates
-  const bracket0_40 = candidates.filter(c => c.match_score < 40).length;
-  const bracket40_60 = candidates.filter(c => c.match_score >= 40 && c.match_score < 60).length;
-  const bracket60_80 = candidates.filter(c => c.match_score >= 60 && c.match_score < 80).length;
-  const bracket80_100 = candidates.filter(c => c.match_score >= 80).length;
+  const bracket0_40 = candidates.filter(c => c.role_match < 40).length;
+  const bracket40_60 = candidates.filter(c => c.role_match >= 40 && c.role_match < 60).length;
+  const bracket60_80 = candidates.filter(c => c.role_match >= 60 && c.role_match < 80).length;
+  const bracket80_100 = candidates.filter(c => c.role_match >= 80).length;
 
   const maxBracketCount = Math.max(1, bracket0_40, bracket40_60, bracket60_80, bracket80_100);
 
@@ -317,7 +317,7 @@ export const RecruiterDashboardView: React.FC<RecruiterDashboardViewProps> = ({
                         </td>
                         <td className="py-3.5 font-mono font-bold text-blue-700 text-xs">
                           <span className="bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                            {cand.match_score}%
+                            {cand.role_match}%
                           </span>
                         </td>
                         <td className="py-3.5">

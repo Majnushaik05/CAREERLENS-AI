@@ -11,7 +11,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+// AI Studio dev environment requires port 3000
+const PORT = 3000;
 const HOST = '0.0.0.0';
 
 app.use(cors({ origin: '*' }));
@@ -772,7 +773,7 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true, host: HOST, port: PORT },
+      server: { middlewareMode: true, host: HOST, port: PORT, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);
