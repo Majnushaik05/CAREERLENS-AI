@@ -411,9 +411,11 @@ app.post('/api/salary/estimate', (req: Request, res: Response) => {
 
 // Enhanced Job Scam & Fraud Detection endpoint (evaluates text and link)
 app.post('/api/job/fraud', (req: Request, res: Response) => {
-  const { text = '', link = '' } = req.body;
-  const lowerText = (text || '').toLowerCase();
-  const lowerLink = (link || '').trim().toLowerCase();
+  const { text = '', link = '', job_description = '', job_url = '' } = req.body;
+  const rawText = (text || job_description || '');
+  const rawLink = (link || job_url || '');
+  const lowerText = rawText.toLowerCase();
+  const lowerLink = rawLink.trim().toLowerCase();
 
   const textMatched = Object.entries(RISK_PATTERNS)
     .filter(([phrase]) => lowerText.includes(phrase))
