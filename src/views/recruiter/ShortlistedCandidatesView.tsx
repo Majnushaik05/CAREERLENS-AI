@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Candidate, HiringCampaign } from '../../types';
-import { Award, Send, Mail, Phone, Users, ArrowRight, ExternalLink, CheckCircle2, Sliders } from 'lucide-react';
+import { Award, Send, Mail, Phone, ArrowRight } from 'lucide-react';
 
 interface ShortlistedCandidatesViewProps {
   campaign: HiringCampaign | null;
@@ -15,10 +15,7 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
   onDispatchTest,
   onNavigate,
 }) => {
-  const [minMatch, setMinMatch] = useState(60);
-  const shortlisted = candidates.filter(
-    c => (c.status === 'Shortlisted' || c.status === 'Assessed') && c.role_match >= minMatch
-  );
+  const shortlisted = candidates.filter(c => c.status === 'Shortlisted' || c.status === 'Assessed');
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto selection:bg-purple-600 selection:text-white pb-16">
@@ -33,25 +30,11 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
             Shortlisted Candidates ({shortlisted.length})
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-            High-fit candidates screened and earmarked for technical assessments, code reviews, and structured interviews.
+            Every candidate you explicitly shortlist appears here. Duplicate resumes are consolidated during screening.
           </p>
         </div>
 
-        {candidates.length > 0 && (
-          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-200 shrink-0">
-            <Sliders className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-xs font-bold text-slate-700">Min Fit: {minMatch}%</span>
-            <input
-              type="range"
-              min={40}
-              max={90}
-              step={5}
-              value={minMatch}
-              onChange={e => setMinMatch(parseInt(e.target.value, 10))}
-              className="w-24 accent-purple-600 cursor-pointer"
-            />
-          </div>
-        )}
+
       </div>
 
       {shortlisted.length === 0 ? (
