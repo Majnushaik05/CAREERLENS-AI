@@ -68,7 +68,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
   // Helper to extract email
   const parseCandidateEmail = (text: string): string => {
     const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return emailMatch ? emailMatch[0] : 'candidate@applied.net';
+    return emailMatch ? emailMatch[0].toLowerCase() : '';
   };
 
   // Helper to extract phone
@@ -190,6 +190,23 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
+  const deduplicateResumes = (items: StagedResume[]) => {
+    const seenEmails = new Set<string>();
+    const seenText = new Set<string>();
+    const unique: StagedResume[] = [];
+    let removed = 0;
+    for (const item of items) {
+      const email = item.email.trim().toLowerCase();
+      const normalizedText = item.text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const fingerprint = normalizedText.length ? normalizedText : item.filename.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      if ((email && seenEmails.has(email)) || (fingerprint && seenText.has(fingerprint))) { removed++; continue; }
+      if (email) seenEmails.add(email);
+      if (fingerprint) seenText.add(fingerprint);
+      unique.push(item);
+    }
+    return { unique, removed };
+  };
+
   // Run bulk screening against the campaign job description
   const handleRunBatchScreening = async () => {
     if (stagedFiles.length === 0) {
@@ -197,12 +214,17 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       return;
     }
 
+    const { unique: uniqueResumes, removed } = deduplicateResumes(stagedFiles);
+    if (uniqueResumes.length === 0) {
+      setErrorMessage('All selected resumes were duplicates. Add at least one unique resume to continue.');
+      return;
+    }
     const jd = campaign?.job_description || `Software Engineer requiring strong technical fundamentals, system design, modern frameworks, databases, and problem solving.`;
 
     setLoading(true);
     setErrorMessage(null);
 
-    const payloadResumes = stagedFiles.map(f => ({
+    const payloadResumes = uniqueResumes.map(f => ({
       name: f.name,
       filename: f.filename,
       email: f.email,
@@ -226,7 +248,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         onScreenComplete(screenedList);
         setStagedFiles([]);
         setLoading(false);
-        setSuccessMessage(`Screened and ranked ${screenedList.length} candidate(s) successfully!`);
+        setSuccessMessage(`Screened ${screenedList.length} unique candidate(s).${removed ? ` Removed ${removed} duplicate resume(s).` : ''}`);
         setTimeout(() => setSuccessMessage(null), 3500);
         return;
       }
@@ -239,7 +261,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     onScreenComplete(fallbackList);
     setStagedFiles([]);
     setLoading(false);
-    setSuccessMessage(`Screened and ranked ${fallbackList.length} candidate(s) successfully!`);
+    setSuccessMessage(`Screened ${fallbackList.length} unique candidate(s).${removed ? ` Removed ${removed} duplicate resume(s).` : ''}`);
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
