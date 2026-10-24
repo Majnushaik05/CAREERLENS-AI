@@ -1,327 +1,713 @@
-import React, { useState, useEffect } from 'react';
-import { AssessmentQuestion } from '../types';
-import { Clock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+```tsx
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Clock,
+  CalendarClock,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 
-interface PublicAssessmentViewProps {
-  token: string;
-  onExit?: () => void;
+interface AssessmentQuestion {
+  id?: string;
+  question: string;
+  options?: string[];
 }
 
-export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ token, onExit }) => {
-  const [loading, setLoading] = useState(true);
-  const [assessmentData, setAssessmentData] = useState<any>(null);
-  const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [reviewMode, setReviewMode] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(1800); // 30 mins
-  const [submitted, setSubmitted] = useState(false);
-  const [startCountdown, setStartCountdown] = useState(0);
+interface Assessment {
+  id?: string;
+  title?: string;
+  role?: string;
+  candidate_name?: string;
+  starts_at: string;
+  ends_at: string;
+  duration_minutes: number;
+  questions: AssessmentQuestion[];
+}
 
-  useEffect(() => {
-    async function fetchAssessment() {
-      try {
-        const res = await fetch(`/api/public/assessment/${token}`);
-        if (res.ok) {
-          const data = await res.json();
-          setAssessmentData(data);
-          setQuestions(data.questions || []);
-          setTimeLeft(Math.max(1, Math.min((data.duration_minutes || 30) * 60, data.ends_at ? Math.ceil((Date.parse(data.ends_at) - Date.now()) / 1000) : (data.duration_minutes || 30) * 60)));
-          if (data.status === 'scheduled' && data.starts_at) setStartCountdown(Math.max(0, Math.ceil((Date.parse(data.starts_at) - Date.now()) / 1000)));
-        } else {
-          const data = await res.json().catch(() => ({}));
-          setAssessmentData({ error: data.error || 'This assessment link is invalid, expired, or already used.' });
-        }
-      } catch {
-        setAssessmentData({ error: 'Unable to load this assessment because the server could not be reached. Please contact the recruiter.' });
-      } finally {
-        setLoading(false);
-      }
+type ViewState =
+  | 'loading'
+  | 'error'
+  | 'instructions'
+  | 'waiting'
+  | 'active'
+  | 'submitting'
+  | 'submitted'
+  | 'expired';
+
+const API_BASE = '';
+
+const formatTime = (seconds: number) => {
+  const safeSeconds = Math.max(0, seconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainingSeconds = safeSeconds % 60;
+
+  return hours > 0
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(
+        2,
+        '0'
+      )}:${String(remainingSeconds).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(
+        remainingSeconds
+      ).padStart(2, '0')}`;
+};
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Schedule unavailable';
+  }
+
+  return date.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+};
+
+const getRemainingSeconds = (dateString: string) => {
+  const timestamp = new Date(dateString).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((timestamp - Date.now()) / 1000));
+};
+
+const getErrorMessage = (data: unknown, fallback: string) => {
+  if (
+    data &&
+    typeof data === 'object' &&
+    'message' in data &&
+    typeof data.message === 'string'
+  ) {
+    return data.message;
+  }
+
+  if (
+    data &&
+    typeof data === 'object' &&
+    'error' in data &&
+    typeof data.error === 'string'
+  ) {
+    return data.error;
+  }
+
+  return fallback;
+};
+
+const PublicAssessmentView: React.FC = () => {
+  const [viewState, setViewState] = useState<ViewState>('loading');
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [countdownSeconds, setCountdownSeconds] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  const token = new URLSearchParams(window.location.search).get('token');
+
+  const loadAssessment = useCallback(async () => {
+    if (!token) {
+      setErrorMessage(
+        'This assessment link is missing its access token. Please contact your recruiter.'
+      );
+      setViewState('error');
+      return;
     }
-    fetchAssessment();
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/public/assessment/${encodeURIComponent(token)}`,
+        {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 410) {
+          setViewState('expired');
+          return;
+        }
+
+        throw new Error(
+          getErrorMessage(data, 'Unable to load this assessment.')
+        );
+      }
+
+      const loadedAssessment = (data.assessment || data) as Assessment;
+
+      if (
+        !loadedAssessment ||
+        !Array.isArray(loadedAssessment.questions) ||
+        loadedAssessment.questions.length === 0 ||
+        !loadedAssessment.starts_at ||
+        !loadedAssessment.ends_at
+      ) {
+        throw new Error(
+          'The assessment data is incomplete. Please contact your recruiter.'
+        );
+      }
+
+      if (
+        !Number.isFinite(new Date(loadedAssessment.starts_at).getTime()) ||
+        !Number.isFinite(new Date(loadedAssessment.ends_at).getTime()) ||
+        new Date(loadedAssessment.ends_at).getTime() <=
+          new Date(loadedAssessment.starts_at).getTime()
+      ) {
+        throw new Error('The assessment schedule is invalid.');
+      }
+
+      setAssessment(loadedAssessment);
+
+      const now = Date.now();
+      const start = new Date(loadedAssessment.starts_at).getTime();
+      const end = new Date(loadedAssessment.ends_at).getTime();
+
+      if (now >= end) {
+        setViewState('expired');
+      } else if (now < start) {
+        setCountdownSeconds(Math.ceil((start - now) / 1000));
+        setViewState('waiting');
+      } else {
+        setRemainingSeconds(
+          Math.min(
+            Math.floor(
+              (loadedAssessment.duration_minutes || 30) * 60
+            ),
+            Math.floor((end - now) / 1000)
+          )
+        );
+        setViewState('instructions');
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong while loading the assessment.'
+      );
+      setViewState('error');
+    }
   }, [token]);
 
-  // Timer countdown
   useEffect(() => {
-    if (submitted || loading || assessmentData?.status !== 'available' || timeLeft <= 0) return;
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleSubmitAssessment();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [timeLeft, submitted, loading, assessmentData?.status]);
+    void loadAssessment();
+  }, [loadAssessment]);
 
+  // Countdown until the scheduled start.
   useEffect(() => {
-    if (assessmentData?.status !== 'scheduled' || !assessmentData?.starts_at) return;
-    const update = () => setStartCountdown(Math.max(0, Math.ceil((Date.parse(assessmentData.starts_at) - Date.now()) / 1000)));
-    update();
-    const timer = window.setInterval(update, 1000);
-    return () => window.clearInterval(timer);
-  }, [assessmentData?.status, assessmentData?.starts_at]);
+    if (viewState !== 'waiting' || !assessment) {
+      return;
+    }
 
-  useEffect(() => {
-    if (assessmentData?.status !== 'scheduled' || startCountdown > 0) return;
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        const res = await fetch(`/api/public/assessment/${token}`);
-        const data = await res.json();
-        if (!cancelled && res.ok) {
-          setAssessmentData(data);
-          setQuestions(data.questions || []);
-          setTimeLeft(Math.max(1, Math.min((data.duration_minutes || 30) * 60, data.ends_at ? Math.ceil((Date.parse(data.ends_at) - Date.now()) / 1000) : (data.duration_minutes || 30) * 60)));
-        } else if (!cancelled) setAssessmentData({ error: data.error || 'The assessment is not available.' });
-      } catch { if (!cancelled) setAssessmentData({ error: 'Unable to refresh the assessment. Please retry.' }); }
-    };
-    refresh();
-    return () => { cancelled = true; };
-  }, [assessmentData?.status, startCountdown, token]);
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const start = new Date(assessment.starts_at).getTime();
+      const end = new Date(assessment.ends_at).getTime();
 
-  const handleSubmitAssessment = async () => {
-    if (submitted) return;
-    try {
-      const submitRes = await fetch(`/api/public/assessment/${token}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers }),
-      });
-      const payload = await submitRes.json().catch(() => ({}));
-      if (!submitRes.ok) {
-        setAssessmentData((prev: any) => ({ ...prev, error: payload.error || 'Submission failed. Please contact the recruiter.' }));
+      if (now >= end) {
+        setViewState('expired');
         return;
       }
-      setSubmitted(true);
-      setAssessmentData((prev: any) => ({ ...prev, status: 'submitted' }));
-    } catch {
-      setAssessmentData((prev: any) => ({ ...prev, error: 'Unable to submit because the server could not be reached. Your answers have not been confirmed as saved.' }));
+
+      if (now >= start) {
+        setRemainingSeconds(
+          Math.min(
+            Math.floor(
+              (assessment.duration_minutes || 30) * 60
+            ),
+            Math.floor((end - now) / 1000)
+          )
+        );
+        setViewState('instructions');
+        return;
+      }
+
+      setCountdownSeconds(Math.ceil((start - now) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [viewState, assessment]);
+
+  // Exam timer. The backend must independently enforce its deadline.
+  useEffect(() => {
+    if (viewState !== 'active' || !assessment) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const end = new Date(assessment.ends_at).getTime();
+
+      if (now >= end) {
+        setRemainingSeconds(0);
+        setViewState('expired');
+        return;
+      }
+
+      setRemainingSeconds((previous) => {
+        if (previous <= 1) {
+          return 0;
+        }
+
+        return previous - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [viewState, assessment]);
+
+  useEffect(() => {
+    if (viewState === 'active' && remainingSeconds <= 0) {
+      void submitAssessment(true);
+    }
+    // Submission is intentionally triggered by the timer reaching zero.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewState, remainingSeconds]);
+
+  const startAssessment = () => {
+    if (!assessment) return;
+
+    const now = Date.now();
+    const start = new Date(assessment.starts_at).getTime();
+    const end = new Date(assessment.ends_at).getTime();
+
+    if (now < start) {
+      setViewState('waiting');
+      setCountdownSeconds(Math.ceil((start - now) / 1000));
+      return;
+    }
+
+    if (now >= end) {
+      setViewState('expired');
+      return;
+    }
+
+    setRemainingSeconds(
+      Math.min(
+        Math.floor((assessment.duration_minutes || 30) * 60),
+        Math.floor((end - now) / 1000)
+      )
+    );
+
+    setViewState('active');
+  };
+
+  const submitAssessment = async (automatic = false) => {
+    if (!assessment || submitting || viewState === 'submitted') {
+      return;
+    }
+
+    if (!automatic) {
+      const unanswered = assessment.questions.reduce(
+        (total, _question, index) =>
+          answers[index] ? total : total + 1,
+        0
+      );
+
+      if (
+        unanswered > 0 &&
+        !window.confirm(
+          `You have ${unanswered} unanswered question(s). Submit anyway?`
+        )
+      ) {
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    setViewState('submitting');
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/public/assessment/${encodeURIComponent(
+          token || ''
+        )}/submit`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            answers: assessment.questions.map((question, index) => ({
+              question_id: question.id || String(index),
+              answer: answers[index] || '',
+            })),
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 410) {
+          setViewState('expired');
+          return;
+        }
+
+        throw new Error(
+          getErrorMessage(data, 'Submission failed. Please try again.')
+        );
+      }
+
+      // Do not display score, answer key, or evaluation to the candidate.
+      setViewState('submitted');
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Submission failed. Please contact your recruiter.'
+      );
+      setViewState('error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (loading) {
+  const chooseAnswer = (answer: string) => {
+    setAnswers((previous) => ({
+      ...previous,
+      [currentQuestion]: answer,
+    }));
+  };
+
+  const goToQuestion = (index: number) => {
+    if (!assessment) return;
+
+    setCurrentQuestion(
+      Math.min(Math.max(index, 0), assessment.questions.length - 1)
+    );
+  };
+
+  const panelClass =
+    'w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9';
+
+  if (viewState === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200/90 shadow-2xs text-center">
-          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-700 font-bold text-xs">Loading Candidate Assessment...</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div className="flex items-center gap-3 text-slate-600">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading assessment...
         </div>
-      </div>
+      </main>
     );
   }
 
-  if (assessmentData?.error) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="max-w-lg rounded-2xl border border-amber-200 bg-white p-8 text-center shadow-sm"><AlertCircle className="mx-auto mb-3 h-8 w-8 text-amber-600"/><h1 className="text-xl font-bold text-slate-900">Assessment unavailable</h1><p className="mt-2 text-sm text-slate-600">{assessmentData.error}</p></div></div>;
-  }
-
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const currentQ = questions[currentIndex];
-  const answeredCount = Object.keys(answers).length;
-
-  if (submitted) {
+  if (viewState === 'error') {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-        <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-700 bg-white p-8 text-center shadow-2xl sm:p-10">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><ShieldCheck className="h-9 w-9"/></div>
-          <div className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Submission confirmed</div>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Thank you for completing the assessment.</h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">Your responses have been securely submitted for recruiter review. Your score and evaluation are not displayed on this page.</p>
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left"><p className="text-sm font-bold text-slate-800">What happens next?</p><p className="mt-1 text-sm leading-6 text-slate-600">The recruitment team will review your submission and contact you if there are further steps.</p></div>
-          <div className="mt-6 text-xs font-semibold text-slate-400">CareerLens AI · Career Intelligence Platform</div>
-        </div>
-      </div>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <section className={panelClass}>
+          <AlertCircle className="mb-4 h-10 w-10 text-red-500" />
+          <h1 className="text-2xl font-black text-slate-900">
+            Unable to open assessment
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {errorMessage}
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadAssessment()}
+            className="mt-6 rounded-xl bg-purple-600 px-5 py-3 font-bold text-white hover:bg-purple-700"
+          >
+            Try again
+          </button>
+        </section>
+      </main>
     );
   }
 
-  if (assessmentData?.status === 'scheduled') {
-    const days = Math.floor(startCountdown / 86400);
-    const hrs = Math.floor((startCountdown % 86400) / 3600);
-    const mins = Math.floor((startCountdown % 3600) / 60);
-    const secs = startCountdown % 60;
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6"><div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-white p-8 text-center shadow-2xl sm:p-10"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><Clock className="h-7 w-7"/></div><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-blue-700">Scheduled assessment</p><h1 className="mt-2 text-2xl font-black text-slate-950">Please wait for your exam</h1><p className="mt-2 text-sm text-slate-600">Your {assessmentData.role} assessment will begin at the scheduled time.</p><div className="my-6 grid grid-cols-4 gap-2">{[['Days',days],['Hours',hrs],['Minutes',mins],['Seconds',secs]].map(([label,value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-xl font-black tabular-nums text-slate-950">{String(value).padStart(2,'0')}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div></div>)}</div><p className="text-xs leading-5 text-slate-500">Keep this page open. The assessment will become available automatically when the exam window opens.</p><div className="mt-6 text-xs font-semibold text-slate-400">CareerLens AI · Secure Assessment</div></div></div>;
+  if (viewState === 'expired') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <section className={panelClass}>
+          <Clock className="mb-4 h-10 w-10 text-amber-500" />
+          <h1 className="text-2xl font-black text-slate-900">
+            Assessment window closed
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            This assessment is no longer available. Please contact your
+            recruiter if you need assistance.
+          </p>
+        </section>
+      </main>
+    );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50 py-8 px-6">
-      <div className="max-w-3xl mx-auto space-y-4">
-        {/* Sticky Timer Header */}
-        <div className="sticky top-4 z-20 bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs flex items-center justify-between gap-4">
-          <div>
-            <div className="font-extrabold text-slate-950 text-sm sm:text-base">
-              {assessmentData?.role || 'Technical Qualifying Test'}
-            </div>
-            <div className="text-xs text-slate-500">
-              Candidate: <span className="font-semibold text-slate-700">{assessmentData?.candidate_name || 'Candidate'}</span> · {questions.length} Questions
-            </div>
+  if (viewState === 'submitted') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <section className={`${panelClass} text-center`}>
+          <CheckCircle2 className="mx-auto mb-5 h-16 w-16 text-emerald-500" />
+          <h1 className="text-3xl font-black text-slate-900">
+            Thank you!
+          </h1>
+          <p className="mt-4 text-base leading-7 text-slate-600">
+            Your assessment has been submitted successfully. Your
+            recruiter will review the results and contact you if needed.
+          </p>
+          <p className="mt-6 text-sm text-slate-500">
+            You may now close this page.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!assessment) {
+    return null;
+  }
+
+  if (viewState === 'waiting') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <section className={`${panelClass} text-center`}>
+          <CalendarClock className="mx-auto mb-5 h-14 w-14 text-purple-600" />
+          <h1 className="text-2xl font-black text-slate-900">
+            Your assessment is scheduled
+          </h1>
+          <p className="mt-3 text-sm text-slate-600">
+            {assessment.role || assessment.title || 'Candidate Assessment'}
+          </p>
+
+          <p className="mt-6 text-sm text-slate-500">Starts in</p>
+          <p className="mt-2 font-mono text-4xl font-black text-purple-700">
+            {formatTime(countdownSeconds)}
+          </p>
+
+          <div className="mt-6 rounded-xl bg-slate-50 p-4 text-left text-sm text-slate-600">
+            <p>
+              <strong>Start:</strong> {formatDate(assessment.starts_at)}
+            </p>
+            <p className="mt-2">
+              <strong>End:</strong> {formatDate(assessment.ends_at)}
+            </p>
+            <p className="mt-2">
+              <strong>Duration:</strong> {assessment.duration_minutes}{' '}
+              minutes
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 font-mono tabular-nums font-bold text-sm text-slate-900 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-            <Clock className="w-4 h-4 text-slate-500 shrink-0" />
-            <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
-          </div>
-        </div>
+          <p className="mt-5 text-xs text-slate-500">
+            Keep this page open. The assessment will become available
+            when the scheduled start time arrives.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
-        {reviewMode ? (
-          /* Review Mode View */
-          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-2xs space-y-6">
-            <div>
-              <h3 className="text-base font-black text-slate-950">Review Your Answers</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Review answered and unanswered questions before final submission.
+  if (viewState === 'instructions') {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <section className={panelClass}>
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+
+          <h1 className="text-2xl font-black text-slate-900">
+            Assessment Instructions
+          </h1>
+
+          <p className="mt-2 text-slate-600">
+            {assessment.role || assessment.title || 'Candidate Assessment'}
+          </p>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs text-slate-500">Questions</p>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {assessment.questions.length}
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200/80">
-              <div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Answered</div>
-                <div className="text-xl font-black text-slate-950 font-mono tabular-nums mt-0.5">{answeredCount}</div>
-              </div>
-              <div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unanswered</div>
-                <div className="text-xl font-black text-amber-600 font-mono tabular-nums mt-0.5">{questions.length - answeredCount}</div>
-              </div>
-              <div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total</div>
-                <div className="text-xl font-black text-slate-950 font-mono tabular-nums mt-0.5">{questions.length}</div>
-              </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs text-slate-500">Duration</p>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {assessment.duration_minutes} min
+              </p>
             </div>
 
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-              {questions.map((q, idx) => (
-                <div
-                  key={q.id}
-                  onClick={() => {
-                    setCurrentIndex(idx);
-                    setReviewMode(false);
-                  }}
-                  className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 cursor-pointer flex items-center justify-between text-xs transition"
-                >
-                  <div className="min-w-0 pr-2">
-                    <span className="font-bold text-slate-900">Q{idx + 1}. </span>
-                    <span className="text-slate-600 truncate">{q.question}</span>
-                  </div>
-                  <span
-                    className={`shrink-0 font-bold text-[11px] ${
-                      answers[q.id] ? 'text-emerald-700' : 'text-amber-700'
-                    }`}
-                  >
-                    {answers[q.id] ? 'Answered' : 'Unanswered'}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setReviewMode(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 font-bold text-xs text-slate-700 transition"
-              >
-                ← Back to Questions
-              </button>
-              <button
-                onClick={handleSubmitAssessment}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold text-xs text-white shadow-sm transition"
-              >
-                Final Submit Assessment
-              </button>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-xs text-slate-500">Time remaining</p>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {formatTime(remainingSeconds)}
+              </p>
             </div>
           </div>
-        ) : (
-          /* Question Mode */
-          currentQ && (
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-2xs space-y-6">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span className="font-bold text-slate-900">
-                  {currentQ.section || 'Technical Competency'}
-                </span>
-                <span className="font-mono tabular-nums font-semibold">
-                  Question {currentIndex + 1} of {questions.length}
-                </span>
-              </div>
 
-              {/* Progress bar */}
-              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full transition-all"
-                  style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-                />
-              </div>
+          <div className="mt-6 space-y-3 text-sm leading-6 text-slate-600">
+            <p>1. Read every question carefully before answering.</p>
+            <p>2. Use the navigation buttons to move between questions.</p>
+            <p>3. Review unanswered questions before submitting.</p>
+            <p>
+              4. Your answers will be submitted when you finish or the
+              timer reaches zero.
+            </p>
+            <p>
+              5. Once submitted, you cannot submit this assessment again.
+            </p>
+          </div>
 
-              <div className="py-1">
-                <h3 className="text-base sm:text-lg font-bold text-slate-950 leading-snug">
-                  {currentQ.question}
-                </h3>
-              </div>
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Assessment access is limited to the scheduled exam window.
+            Do not refresh or close the page during the exam.
+          </div>
 
-              {/* Options */}
-              <div className="space-y-2.5">
-                {currentQ.options.map((opt, oIdx) => {
-                  const isSelected = answers[currentQ.id] === opt;
-                  return (
-                    <button
-                      key={oIdx}
-                      onClick={() => setAnswers(prev => ({ ...prev, [currentQ.id]: opt }))}
-                      className={`w-full p-4 rounded-xl border text-left text-xs sm:text-sm font-semibold transition flex items-center justify-between ${
-                        isSelected
-                          ? 'border-blue-600 bg-blue-50/60 text-slate-950 ring-1 ring-blue-600'
-                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-800'
+          <button
+            type="button"
+            onClick={startAssessment}
+            className="mt-7 w-full rounded-xl bg-purple-600 py-3 font-bold text-white hover:bg-purple-700"
+          >
+            Start Assessment
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  const question = assessment.questions[currentQuestion];
+  const answeredCount = Object.keys(answers).filter(
+    (key) => answers[Number(key)]
+  ).length;
+
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-4xl">
+        <header className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-purple-600">
+              CareerLens AI
+            </p>
+            <h1 className="mt-1 text-lg font-black text-slate-900">
+              {assessment.role || assessment.title || 'Assessment'}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Question {currentQuestion + 1} of{' '}
+              {assessment.questions.length}
+            </p>
+          </div>
+
+          <div
+            className={`flex items-center gap-2 rounded-xl px-4 py-3 font-mono text-lg font-black ${
+              remainingSeconds <= 60
+                ? 'bg-red-50 text-red-700'
+                : 'bg-purple-50 text-purple-700'
+            }`}
+            aria-live="polite"
+          >
+            <Clock className="h-5 w-5" />
+            {formatTime(remainingSeconds)}
+          </div>
+        </header>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-700">
+              Question {currentQuestion + 1}
+            </span>
+
+            <span className="text-xs text-slate-500">
+              {answeredCount} of {assessment.questions.length} answered
+            </span>
+          </div>
+
+          <h2 className="text-xl font-bold leading-8 text-slate-900">
+            {question.question}
+          </h2>
+
+          {Array.isArray(question.options) &&
+          question.options.length > 0 ? (
+            <div className="mt-7 space-y-3">
+              {question.options.map((option, index) => {
+                const selected = answers[currentQuestion] === option;
+
+                return (
+                  <button
+                    key={`${currentQuestion}-${index}`}
+                    type="button"
+                    onClick={() => chooseAnswer(option)}
+                    className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left text-sm transition ${
+                      selected
+                        ? 'border-purple-500 bg-purple-50 text-purple-900'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-purple-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${
+                        selected
+                          ? 'border-purple-600 bg-purple-600 text-white'
+                          : 'border-slate-300 text-slate-600'
                       }`}
                     >
-                      <span>{opt}</span>
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                          isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300'
-                        }`}
-                      >
-                        {isSelected && <CheckCircle2 className="w-3 h-3" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Nav buttons */}
-              <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                <button
-                  disabled={currentIndex === 0}
-                  onClick={() => setCurrentIndex(prev => prev - 1)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs disabled:opacity-40 hover:bg-slate-50 transition flex items-center gap-1.5"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Previous
-                </button>
-
-                <button
-                  onClick={() => setReviewMode(true)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition"
-                >
-                  Review
-                </button>
-
-                {currentIndex < questions.length - 1 ? (
-                  <button
-                    onClick={() => setCurrentIndex(prev => prev + 1)}
-                    className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition flex items-center gap-1.5"
-                  >
-                    Next <ArrowRight className="w-3.5 h-3.5" />
+                      {String.fromCharCode(65 + index)}
+                    </span>
+                    <span className="pt-0.5">{option}</span>
                   </button>
-                ) : (
-                  <button
-                    onClick={() => setReviewMode(true)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition flex items-center gap-1.5"
-                  >
-                    Review &amp; Submit
-                  </button>
-                )}
-              </div>
+                );
+              })}
             </div>
-          )
-        )}
+          ) : (
+            <textarea
+              value={answers[currentQuestion] || ''}
+              onChange={(event) => chooseAnswer(event.target.value)}
+              placeholder="Type your answer here..."
+              rows={6}
+              className="mt-7 w-full rounded-xl border border-slate-300 p-4 text-sm leading-6 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+            />
+          )}
+
+          <div className="mt-8 flex flex-col justify-between gap-3 border-t border-slate-100 pt-6 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => goToQuestion(currentQuestion - 1)}
+              disabled={currentQuestion === 0}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+
+            {currentQuestion < assessment.questions.length - 1 ? (
+              <button
+                type="button"
+                onClick={() => goToQuestion(currentQuestion + 1)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white hover:bg-purple-700"
+              >
+                Next question
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void submitAssessment()}
+                disabled={submitting}
+                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Submit assessment
+              </button>
+            )}
+          </div>
+        </section>
+
+        <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+          Your responses are submitted to your recruiter for review.
+          Do not share your assessment link with others.
+        </p>
       </div>
-    </div>
+    </main>
   );
 };
+
+export default PublicAssessmentView;
+```
