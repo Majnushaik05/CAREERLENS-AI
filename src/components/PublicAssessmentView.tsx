@@ -1,4 +1,4 @@
-```tsx
+
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Clock,
@@ -710,4 +710,3 @@ const PublicAssessmentView: React.FC = () => {
 };
 
 export default PublicAssessmentView;
-```
