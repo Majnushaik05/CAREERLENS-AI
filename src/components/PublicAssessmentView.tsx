@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AssessmentQuestion, AssessmentResult } from '../types';
-import { Clock, CheckCircle2, ArrowLeft, ArrowRight, Award, AlertCircle } from 'lucide-react';
+import { AssessmentQuestion } from '../types';
+import { Clock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface PublicAssessmentViewProps {
   token: string;
@@ -16,7 +16,7 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
   const [reviewMode, setReviewMode] = useState(false);
   const [timeLeft, setTimeLeft] = useState(1800); // 30 mins
   const [submitted, setSubmitted] = useState(false);
-  const [result, setResult] = useState<AssessmentResult | null>(null);
+  const [startCountdown, setStartCountdown] = useState(0);
 
   useEffect(() => {
     async function fetchAssessment() {
@@ -26,20 +26,14 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
           const data = await res.json();
           setAssessmentData(data);
           setQuestions(data.questions || []);
-          setTimeLeft((data.duration_minutes || 30) * 60);
+          setTimeLeft(Math.max(1, Math.min((data.duration_minutes || 30) * 60, data.ends_at ? Math.ceil((Date.parse(data.ends_at) - Date.now()) / 1000) : (data.duration_minutes || 30) * 60)));
+          if (data.status === 'scheduled' && data.starts_at) setStartCountdown(Math.max(0, Math.ceil((Date.parse(data.starts_at) - Date.now()) / 1000)));
         } else {
-          // If token not in map, generate test bank on the fly
-          const gen = await fetch('/api/assessment/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: 'Software Developer', question_count: 10 }),
-          });
-          const genData = await gen.json();
-          setQuestions(genData.questions || []);
-          setAssessmentData({ role: 'Software Developer', candidate_name: 'Candidate' });
+          const data = await res.json().catch(() => ({}));
+          setAssessmentData({ error: data.error || 'This assessment link is invalid, expired, or already used.' });
         }
-      } catch (err) {
-        console.error(err);
+      } catch {
+        setAssessmentData({ error: 'Unable to load this assessment because the server could not be reached. Please contact the recruiter.' });
       } finally {
         setLoading(false);
       }
@@ -49,7 +43,7 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
 
   // Timer countdown
   useEffect(() => {
-    if (submitted || loading || timeLeft <= 0) return;
+    if (submitted || loading || assessmentData?.status !== 'available' || timeLeft <= 0) return;
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -61,27 +55,51 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeLeft, submitted, loading]);
+  }, [timeLeft, submitted, loading, assessmentData?.status]);
+
+  useEffect(() => {
+    if (assessmentData?.status !== 'scheduled' || !assessmentData?.starts_at) return;
+    const update = () => setStartCountdown(Math.max(0, Math.ceil((Date.parse(assessmentData.starts_at) - Date.now()) / 1000)));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [assessmentData?.status, assessmentData?.starts_at]);
+
+  useEffect(() => {
+    if (assessmentData?.status !== 'scheduled' || startCountdown > 0) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const res = await fetch(`/api/public/assessment/${token}`);
+        const data = await res.json();
+        if (!cancelled && res.ok) {
+          setAssessmentData(data);
+          setQuestions(data.questions || []);
+          setTimeLeft(Math.max(1, Math.min((data.duration_minutes || 30) * 60, data.ends_at ? Math.ceil((Date.parse(data.ends_at) - Date.now()) / 1000) : (data.duration_minutes || 30) * 60)));
+        } else if (!cancelled) setAssessmentData({ error: data.error || 'The assessment is not available.' });
+      } catch { if (!cancelled) setAssessmentData({ error: 'Unable to refresh the assessment. Please retry.' }); }
+    };
+    refresh();
+    return () => { cancelled = true; };
+  }, [assessmentData?.status, startCountdown, token]);
 
   const handleSubmitAssessment = async () => {
+    if (submitted) return;
     try {
-      const scoreRes = await fetch('/api/assessment/score', {
+      const submitRes = await fetch(`/api/public/assessment/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions, answers }),
+        body: JSON.stringify({ answers }),
       });
-      const scoreData: AssessmentResult = await scoreRes.json();
-      setResult(scoreData);
+      const payload = await submitRes.json().catch(() => ({}));
+      if (!submitRes.ok) {
+        setAssessmentData((prev: any) => ({ ...prev, error: payload.error || 'Submission failed. Please contact the recruiter.' }));
+        return;
+      }
       setSubmitted(true);
-
-      // Record in public API
-      await fetch(`/api/public/assessment/${token}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers, result: scoreData }),
-      });
-    } catch (e) {
-      console.error(e);
+      setAssessmentData((prev: any) => ({ ...prev, status: 'submitted' }));
+    } catch {
+      setAssessmentData((prev: any) => ({ ...prev, error: 'Unable to submit because the server could not be reached. Your answers have not been confirmed as saved.' }));
     }
   };
 
@@ -96,59 +114,36 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
     );
   }
 
+  if (assessmentData?.error) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="max-w-lg rounded-2xl border border-amber-200 bg-white p-8 text-center shadow-sm"><AlertCircle className="mx-auto mb-3 h-8 w-8 text-amber-600"/><h1 className="text-xl font-bold text-slate-900">Assessment unavailable</h1><p className="mt-2 text-sm text-slate-600">{assessmentData.error}</p></div></div>;
+  }
+
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const currentQ = questions[currentIndex];
   const answeredCount = Object.keys(answers).length;
 
-  if (submitted && result) {
+  if (submitted) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white max-w-xl w-full rounded-2xl p-8 border border-slate-200/90 shadow-2xs text-center space-y-6">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
-            <Award className="w-6 h-6" />
-          </div>
-
-          <div>
-            <div className="text-xs font-semibold text-slate-500 mb-1">
-              <span>Exam Complete</span>
-              <span aria-hidden="true" className="mx-2">·</span>
-              <span className="text-emerald-700 font-bold">Submission Confirmed</span>
-            </div>
-            <h2 className="text-2xl font-black text-slate-950">
-              Assessment Successfully Recorded
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Your exam results have been transmitted directly to the Career Lens Recruiter Score Vault.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200/80">
-            <div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Score</div>
-              <div className="text-2xl font-black text-slate-950 font-mono tabular-nums mt-0.5">{result.percentage}%</div>
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Correct</div>
-              <div className="text-2xl font-black text-emerald-600 font-mono tabular-nums mt-0.5">{result.correct_count} / {result.total}</div>
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unanswered</div>
-              <div className="text-2xl font-black text-amber-600 font-mono tabular-nums mt-0.5">{result.unanswered_count}</div>
-            </div>
-          </div>
-
-          {onExit && (
-            <button
-              onClick={onExit}
-              className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition shadow-xs"
-            >
-              Return to CareerLens Portal
-            </button>
-          )}
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-slate-700 bg-white p-8 text-center shadow-2xl sm:p-10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><ShieldCheck className="h-9 w-9"/></div>
+          <div className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Submission confirmed</div>
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Thank you for completing the assessment.</h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">Your responses have been securely submitted for recruiter review. Your score and evaluation are not displayed on this page.</p>
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-left"><p className="text-sm font-bold text-slate-800">What happens next?</p><p className="mt-1 text-sm leading-6 text-slate-600">The recruitment team will review your submission and contact you if there are further steps.</p></div>
+          <div className="mt-6 text-xs font-semibold text-slate-400">CareerLens AI · Career Intelligence Platform</div>
         </div>
       </div>
     );
+  }
+
+  if (assessmentData?.status === 'scheduled') {
+    const days = Math.floor(startCountdown / 86400);
+    const hrs = Math.floor((startCountdown % 86400) / 3600);
+    const mins = Math.floor((startCountdown % 3600) / 60);
+    const secs = startCountdown % 60;
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6"><div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-white p-8 text-center shadow-2xl sm:p-10"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-700"><Clock className="h-7 w-7"/></div><p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-blue-700">Scheduled assessment</p><h1 className="mt-2 text-2xl font-black text-slate-950">Please wait for your exam</h1><p className="mt-2 text-sm text-slate-600">Your {assessmentData.role} assessment will begin at the scheduled time.</p><div className="my-6 grid grid-cols-4 gap-2">{[['Days',days],['Hours',hrs],['Minutes',mins],['Seconds',secs]].map(([label,value]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-xl font-black tabular-nums text-slate-950">{String(value).padStart(2,'0')}</div><div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div></div>)}</div><p className="text-xs leading-5 text-slate-500">Keep this page open. The assessment will become available automatically when the exam window opens.</p><div className="mt-6 text-xs font-semibold text-slate-400">CareerLens AI · Secure Assessment</div></div></div>;
   }
 
   return (
