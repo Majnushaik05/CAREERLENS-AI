@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { randomBytes, createHash } from 'node:crypto';
 
 dotenv.config();
 
@@ -11,13 +12,41 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// AI Studio dev environment requires port 3000
-const PORT = 3000;
-const HOST = '0.0.0.0';
+// Keep local defaults, but allow deployment platforms to configure the listener.
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || '0.0.0.0';
+const configuredOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
+  .split(',').map(value => value.trim()).filter(Boolean);
 
-app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.disable('x-powered-by');
+app.use((req: Request, res: Response, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+app.use(cors({ origin: (origin, callback) => {
+  if (!origin || configuredOrigins.includes('*') || configuredOrigins.includes(origin)) return callback(null, true);
+  return callback(new Error('Origin not allowed by CORS'));
+} }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+
+// Lightweight per-process abuse guard. Use a shared store/rate limiter for multi-instance production.
+const requestBuckets = new Map<string, { count: number; resetAt: number }>();
+app.use('/api', (req: Request, res: Response, next) => {
+  const now = Date.now();
+  const key = `${req.ip}:${req.path.split('/').slice(0, 4).join('/')}`;
+  const bucket = requestBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) requestBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+  else if (++bucket.count > Number(process.env.API_RATE_LIMIT_PER_MINUTE || 120)) {
+    return res.status(429).json({ error: 'Too many requests. Please try again shortly.' });
+  }
+  // Periodically prune expired buckets to avoid unbounded growth.
+  if (requestBuckets.size > 5000) for (const [k, v] of requestBuckets) if (v.resetAt <= now) requestBuckets.delete(k);
+  next();
+});
 
 // Initialize Gemini SDK if available
 let aiClient: GoogleGenAI | null = null;
@@ -326,7 +355,7 @@ function matchJob(resumeText: string, jobDescription: string) {
   };
 }
 
-// In-memory persistent store for assessments & candidates
+// WARNING: in-memory only; records are lost on restart and are not shared across instances.
 const assessmentStore = new Map<string, any>();
 const recruiterStateStore = new Map<string, any>();
 
@@ -367,7 +396,7 @@ function getAssessmentBank(role: string) {
 // ============================================================
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'CareerLens AI API', version: '5.4.0' });
+  res.json({ status: 'ok', service: 'CareerLens AI API', version: '5.4.0', aiConfigured: Boolean(aiClient), persistence: 'in-memory' });
 });
 
 // Resume analyze endpoint
@@ -982,7 +1011,21 @@ app.post('/api/recruiter/screen', (req: Request, res: Response) => {
     return res.status(422).json({ error: 'Job description is required for bulk screening.' });
   }
 
-  const results = (resumes as any[]).map((r, index) => {
+  if (!Array.isArray(resumes)) return res.status(422).json({ error: 'resumes must be an array.' });
+  const uniqueResumes: any[] = [];
+  const seenEmails = new Set<string>();
+  const seenFingerprints = new Set<string>();
+  for (const resume of resumes.slice(0, 500)) {
+    if (!resume || typeof resume !== 'object' || typeof resume.text !== 'string' || !resume.text.trim()) continue;
+    const emailMatch = String(resume.email || '').trim().toLowerCase();
+    const normalized = resume.text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const fingerprint = createHash('sha256').update(normalized).digest('hex');
+    if ((emailMatch && seenEmails.has(emailMatch)) || seenFingerprints.has(fingerprint)) continue;
+    if (emailMatch) seenEmails.add(emailMatch);
+    seenFingerprints.add(fingerprint);
+    uniqueResumes.push(resume);
+  }
+  const results = uniqueResumes.map((r, index) => {
     const text = r.text || '';
     const filename = r.filename || `candidate_${index + 1}.pdf`;
     const profile = analyzeResume(text, filename);
@@ -995,7 +1038,7 @@ app.post('/api/recruiter/screen', (req: Request, res: Response) => {
       phone: profile.phone || r.phone || '',
       resume_score: profile.resume_score,
       role_match: match.overall,
-      status: match.overall >= 70 ? 'Shortlisted' : 'Screened',
+      status: 'Screened',
       assessment_status: 'Not Sent',
       email_status: profile.email ? 'Found' : 'Missing',
       skills: profile.skills,
@@ -1015,55 +1058,114 @@ app.post('/api/send-email', (req: Request, res: Response) => {
   if (!to_email || !subject) {
     return res.status(422).json({ error: 'Missing to_email or subject' });
   }
-  // In dev / AI Studio container, log and return successful notification
-  console.log(`[Email Dispatcher] Mock sent email to ${to_email}: "${subject}"`);
-  return res.json({ status: 'sent', message: `Assessment email successfully dispatched to ${to_email}` });
+  // Never claim delivery unless a real mail provider is configured and confirms it.
+  if (!process.env.SENDGRID_API_KEY || !process.env.SENDGRID_FROM_EMAIL) {
+    return res.status(503).json({ error: 'Email delivery is not configured. Configure SENDGRID_API_KEY and SENDGRID_FROM_EMAIL.' });
+  }
+  return res.status(501).json({ error: 'SendGrid delivery adapter is not implemented in this build; no email was sent.' });
 });
 
 // Public assessment creation and retrieval endpoints
 app.post('/api/public/assessment/create', (req: Request, res: Response) => {
-  const { role, candidate_id, candidate_name, candidate_email, duration_minutes = 30, questions = [] } = req.body;
-  const token = `cl_test_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
-  
+  const { role, candidate_id, candidate_name, candidate_email, duration_minutes = 30, questions = [], starts_at, ends_at } = req.body || {};
+  if (typeof role !== 'string' || !role.trim() || !Array.isArray(questions) || questions.length < 1 || questions.length > 100) {
+    return res.status(422).json({ error: 'A role and between 1 and 100 assessment questions are required.' });
+  }
+  const duration = Number(duration_minutes);
+  if (!Number.isInteger(duration) || duration < 1 || duration > 240) {
+    return res.status(422).json({ error: 'duration_minutes must be an integer between 1 and 240.' });
+  }
+  const token = randomBytes(32).toString('hex');
+  const now = Date.now();
+  const startTime = starts_at ? Date.parse(starts_at) : now;
+  const endTime = ends_at ? Date.parse(ends_at) : startTime + duration * 60_000;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || startTime <= now || endTime <= startTime || endTime <= now) {
+    return res.status(422).json({ error: 'Provide valid exam start and end times; the end must be after the start and in the future.' });
+  }
   const record = {
-    token,
-    role,
-    candidate_id,
-    candidate_name,
-    candidate_email,
-    duration_minutes,
-    questions,
-    created_at: new Date().toISOString(),
+    token, role: role.trim().slice(0, 200), candidate_id,
+    candidate_name: typeof candidate_name === 'string' ? candidate_name.slice(0, 200) : 'Candidate',
+    candidate_email: typeof candidate_email === 'string' ? candidate_email.slice(0, 320) : '',
+    duration_minutes: duration,
+    starts_at: new Date(startTime).toISOString(),
+    ends_at: new Date(endTime).toISOString(),
+    questions: questions.map((q: any, i: number) => ({
+      id: q?.id ?? i + 1,
+      question: String(q?.question || '').slice(0, 2000),
+      options: Array.isArray(q?.options) ? q.options.slice(0, 10).map((v: unknown) => String(v).slice(0, 500)) : [],
+      answer: String(q?.answer || ''),
+      section: String(q?.section || 'General').slice(0, 100),
+    })),
+    created_at: new Date(now).toISOString(),
+    expires_at: new Date(endTime).toISOString(),
     used: false,
   };
-
+  if (record.questions.some(q => !q.question || !q.options.length || !q.answer)) {
+    return res.status(422).json({ error: 'Each question must include question text, options, and an answer key.' });
+  }
   assessmentStore.set(token, record);
-  return res.json({ token, link: `/?assessment=${token}` });
+  return res.status(201).json({ token, link: `/?assessment=${token}`, expires_at: record.expires_at });
 });
 
 app.get('/api/public/assessment/:token', (req: Request, res: Response) => {
   const token = String(req.params.token || '');
   const record = assessmentStore.get(token);
-  if (!record) {
-    return res.status(404).json({ error: 'Assessment token not found or expired' });
+  if (!record || record.used) return res.status(404).json({ error: 'Assessment token is invalid or already used.' });
+  const now = Date.now();
+  if (now > Date.parse(record.ends_at || record.expires_at)) return res.status(410).json({ error: 'This assessment window has ended.' });
+  if (now < Date.parse(record.starts_at || record.created_at)) {
+    return res.json({ status: 'scheduled', role: record.role, candidate_name: record.candidate_name, starts_at: record.starts_at, ends_at: record.ends_at });
   }
-  return res.json(record);
+  // Do not disclose the answer key to the candidate browser.
+  const { questions, ...metadata } = record;
+  return res.json({ ...metadata, status: 'available', questions: questions.map(({ answer, ...q }: any) => q) });
 });
 
 app.post('/api/public/assessment/:token/submit', (req: Request, res: Response) => {
   const token = String(req.params.token || '');
-  const { answers = {}, result = {} } = req.body;
+  const answers = req.body?.answers;
   const record = assessmentStore.get(token);
-  if (!record) {
-    return res.status(404).json({ error: 'Assessment record not found' });
+  if (!record) return res.status(404).json({ error: 'Assessment record not found.' });
+  if (record.used) return res.status(409).json({ error: 'This assessment has already been submitted.' });
+  if (Date.now() < Date.parse(record.starts_at || record.created_at)) return res.status(425).json({ error: 'This assessment has not started yet.' });
+  if (Date.now() > Date.parse(record.ends_at || record.expires_at)) return res.status(410).json({ error: 'This assessment window has ended.' });
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return res.status(422).json({ error: 'Answers must be provided as an object.' });
   }
+  let correct = 0;
+  let wrong = 0;
+  let unanswered = 0;
+  for (const q of record.questions) {
+    const selected = answers[String(q.id)] ?? answers[q.id];
+    if (selected === undefined || selected === null || selected === '') unanswered++;
+    else if (String(selected).trim() === String(q.answer).trim()) correct++;
+    else wrong++;
+  }
+  const total = record.questions.length;
+  const result = { score: correct, total, percentage: total ? Math.round(correct / total * 1000) / 10 : 0, correct_count: correct, wrong_count: wrong, unanswered_count: unanswered };
   record.used = true;
   record.submitted_at = new Date().toISOString();
   record.answers = answers;
   record.result = result;
   assessmentStore.set(token, record);
+  return res.json({ status: 'success', recorded: true, message: 'Assessment submission received.' });
+});
 
-  return res.json({ status: 'success', recorded: true, result });
+// Recruiter assessment result feed. Only score summaries are returned; never return answer keys or raw answers.
+// NOTE: Protect this route with real authentication/authorization before production use.
+app.get('/api/recruiter/assessment-results', (_req: Request, res: Response) => {
+  const results = Array.from(assessmentStore.values())
+    .filter((record: any) => record.used && record.result)
+    .map((record: any) => ({
+      token: record.token,
+      candidate_id: record.candidate_id,
+      candidate_name: record.candidate_name,
+      candidate_email: record.candidate_email,
+      role: record.role,
+      submitted_at: record.submitted_at,
+      result: record.result,
+    }));
+  return res.json({ results });
 });
 
 // Recruiter state persistence
