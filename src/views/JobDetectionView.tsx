@@ -19,44 +19,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-const SAMPLES = {
-  scam_telegram: {
-    title: 'Urgent Wire-Fee & Telegram Solicit (Fake Job)',
-    text: `Subject: Immediate Remote Executive Assistant Opening - No Interview Required!
-Dear Candidate,
-Congratulations! Your resume has been shortlisted. You are hired directly without any formal interview rounds for our remote administrative division.
-Compensation is $4,850 disbursed weekly. Prior to orientation, all selected candidates must remit an advance laptop equipment insurance registration fee of $175 via wire transfer, Cash App, or Bitcoin to our logistics partner.
-Contact recruiter immediately on Telegram @global_exec_careers. Deadline 24 hours.`,
-    link: 'https://bit.ly/rapid-hiring-telegram-intake-992',
-  },
-  scam_phishing: {
-    title: 'Spoofed Domain & Generic Form (Fake Job)',
-    text: `Amazon Customer Operations Lead Requisition #4882
-We are conducting instant onboarding for data entry leads.
-Candidates will be supplied with company credit cards once their bank accounts are verified through our external intake form.
-No technical assessment required. High urgency placement.`,
-    link: 'https://amaz0n-logistics-onboarding.xyz/forms.gle/auth',
-  },
-  legit_corporate: {
-    title: 'Official Google Cloud Staff Engineer (Real Job)',
-    text: `Senior Cloud Solutions Architect Requisition #G-88219
-Organization: Google Cloud Enterprise Engineering
-Responsibilities: Architect multi-region cloud infrastructures, consult on distributed database resilience, and partner with strategic enterprise customers.
-Minimum Qualifications: 5+ years building and deploying scalable web services with Go, Java, or Python; experience with Kubernetes and CI/CD pipelines.
-Hiring Process: Initial technical screen -> System design round -> Coding interviews -> Hiring committee review.`,
-    link: 'https://careers.google.com/jobs/results/88219-senior-cloud-solutions-architect',
-  },
-  legit_greenhouse: {
-    title: 'Verified Stripe Backend Engineer (Real Job)',
-    text: `Backend Infrastructure Engineer - Core Ledger
-Company: Stripe
-Role: You will design, build, and maintain the distributed banking ledger and money movement primitives.
-Requirements: Strong foundations in computer science, concurrency, and distributed transactions. Experience with Ruby, Java, or Go.
-Process: Recruiter call, take-home or live technical screening, onsite interview panel with ledger architects.`,
-    link: 'https://boards.greenhouse.io/stripe/jobs/4910283002',
-  },
-};
-
 interface SafetyResult {
   score: number;
   level: 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK';
@@ -77,8 +39,8 @@ interface SafetyResult {
 }
 
 export const JobDetectionView: React.FC = () => {
-  const [jobText, setJobText] = useState(SAMPLES.scam_telegram.text);
-  const [jobLink, setJobLink] = useState(SAMPLES.scam_telegram.link);
+  const [jobText, setJobText] = useState('');
+  const [jobLink, setJobLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SafetyResult | null>(null);
   const [activeTab, setActiveTab] = useState<'verdict' | 'link' | 'signals' | 'checklist'>('verdict');
@@ -261,12 +223,6 @@ export const JobDetectionView: React.FC = () => {
     setLoading(false);
   };
 
-  const loadPreset = (key: keyof typeof SAMPLES) => {
-    setJobText(SAMPLES[key].text);
-    setJobLink(SAMPLES[key].link);
-    setResult(null);
-  };
-
   return (
     <div className="space-y-6 max-w-5xl selection:bg-blue-600 selection:text-white">
       {/* Header Banner */}
@@ -286,59 +242,6 @@ export const JobDetectionView: React.FC = () => {
         <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-3xl leading-relaxed">
           Paste the job description and application URL below to detect fake offers, upfront equipment fees, phishing domains, and recruitment fraud before you apply.
         </p>
-      </div>
-
-      {/* Preset Test Case Bar */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-2">
-        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-          <span>QUICK 1-CLICK VERIFICATION EXAMPLES</span>
-          <span className="text-slate-400">Click to test instant analysis</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          <button
-            onClick={() => loadPreset('scam_telegram')}
-            className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-left transition group text-xs flex flex-col justify-between"
-          >
-            <div className="font-bold text-rose-900 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-              <span className="truncate">Telegram &amp; Wire Scam</span>
-            </div>
-            <span className="text-[10px] text-rose-700 font-mono mt-1">bit.ly shortened link</span>
-          </button>
-
-          <button
-            onClick={() => loadPreset('scam_phishing')}
-            className="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100/70 text-left transition group text-xs flex flex-col justify-between"
-          >
-            <div className="font-bold text-rose-900 flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-              <span className="truncate">Domain Spoof Phishing</span>
-            </div>
-            <span className="text-[10px] text-rose-700 font-mono mt-1">amaz0n / .xyz link</span>
-          </button>
-
-          <button
-            onClick={() => loadPreset('legit_corporate')}
-            className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition group text-xs flex flex-col justify-between"
-          >
-            <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="truncate">Google Cloud Listing</span>
-            </div>
-            <span className="text-[10px] text-emerald-700 font-mono mt-1">careers.google.com</span>
-          </button>
-
-          <button
-            onClick={() => loadPreset('legit_greenhouse')}
-            className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition group text-xs flex flex-col justify-between"
-          >
-            <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="truncate">Stripe Engineering</span>
-            </div>
-            <span className="text-[10px] text-emerald-700 font-mono mt-1">boards.greenhouse.io</span>
-          </button>
-        </div>
       </div>
 
       {/* Input Box: Job Description and Application Link Underneath */}
@@ -374,44 +277,59 @@ export const JobDetectionView: React.FC = () => {
             </span>
           </label>
 
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Globe className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={jobLink}
-              onChange={e => setJobLink(e.target.value)}
-              placeholder="e.g. https://careers.company.com/job/1029 or bit.ly/application-link"
-              className="w-full pl-10 pr-24 py-3 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
-            />
-            {jobLink && (
-              <div className="absolute inset-y-0 right-2 flex items-center gap-1.5">
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                    jobLink.toLowerCase().startsWith('https://')
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}
-                >
-                  {jobLink.toLowerCase().startsWith('https://') ? 'HTTPS' : 'HTTP/INSECURE'}
-                </span>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Globe className="w-4 h-4" />
               </div>
-            )}
+              <input
+                type="text"
+                value={jobLink}
+                onChange={e => setJobLink(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') checkFraud();
+                }}
+                placeholder="e.g. https://careers.company.com/job/1029 or bit.ly/application-link"
+                className="w-full pl-10 pr-24 py-3 rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition"
+              />
+              {jobLink && (
+                <div className="absolute inset-y-0 right-2 flex items-center gap-1.5">
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      jobLink.toLowerCase().startsWith('https://')
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    {jobLink.toLowerCase().startsWith('https://') ? 'HTTPS' : 'HTTP/INSECURE'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={checkFraud}
+              disabled={loading || !jobLink.trim()}
+              className="px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 font-bold text-xs transition flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Link2 className="w-3.5 h-3.5 text-blue-600" />
+              <span>Audit Link Only</span>
+            </button>
           </div>
           <p className="text-[11px] text-slate-400">
-            Paste the destination website, shortened URL, or form link. Career Lens audits domain age, SSL status, and brand spoofing.
+            Paste destination website, shortened URL, or form link. Career Lens audits domain age, SSL status, and brand spoofing.
           </p>
         </div>
 
-        {/* Action Button */}
+        {/* Action Button: High Visibility */}
         <div className="pt-2">
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             onClick={checkFraud}
             disabled={loading || (!jobText.trim() && !jobLink.trim())}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-2.5"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-sm transition flex items-center justify-center gap-2.5"
           >
             {loading ? (
               <>
@@ -756,6 +674,18 @@ export const JobDetectionView: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!result && (
+        <div className="bg-white rounded-3xl p-8 border border-slate-200/90 shadow-2xs text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+            <Shield className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900">Enter Job Details to Run Safety Verification</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            Paste any job message, recruiter email, or application URL into the input fields above and click &quot;Analyze Job Authenticity &amp; Link Safety&quot; to inspect for advance-fee fraud, spoofed corporate domains, and unverified contacts.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

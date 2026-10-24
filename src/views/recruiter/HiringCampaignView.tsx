@@ -11,30 +11,25 @@ export const HiringCampaignView: React.FC<HiringCampaignViewProps> = ({
   campaign,
   onSaveCampaign,
 }) => {
-  const [role, setRole] = useState(campaign?.role || 'Senior Full Stack Software Engineer');
-  const [company, setCompany] = useState(campaign?.company || 'Apex Cloud Innovations');
-  const [jobDescription, setJobDescription] = useState(
-    campaign?.job_description ||
-      `Senior Full Stack Engineer
-We are seeking an experienced Full Stack Developer to build and scale distributed microservices and modern React applications.
-Required competencies:
-• 4+ years Python, FastAPI, and React with TypeScript
-• Proficiency in PostgreSQL, Docker containerization, and AWS
-• Clean REST API design, CI/CD pipelines, and automated testing`
-  );
-  const [passingScore, setPassingScore] = useState(campaign?.passing_score || 70);
+  const [role, setRole] = useState(campaign?.role || '');
+  const [company, setCompany] = useState(campaign?.company || '');
+  const [jobDescription, setJobDescription] = useState(campaign?.job_description || '');
+  const [passingScore, setPassingScore] = useState(campaign?.passing_score || 75);
   const [questionCount, setQuestionCount] = useState(campaign?.question_count || 10);
   const [durationMinutes, setDurationMinutes] = useState(campaign?.duration_minutes || 30);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!role.trim() || !company.trim() || !jobDescription.trim()) {
+      return;
+    }
     const newCamp: HiringCampaign = {
       id: campaign?.id || `camp_${Date.now()}`,
-      title: `${role} at ${company}`,
-      role,
-      company,
-      job_description: jobDescription,
+      title: `${role.trim()} at ${company.trim()}`,
+      role: role.trim(),
+      company: company.trim(),
+      job_description: jobDescription.trim(),
       passing_score: passingScore,
       question_count: questionCount,
       duration_minutes: durationMinutes,
@@ -73,6 +68,7 @@ Required competencies:
               required
               value={role}
               onChange={e => setRole(e.target.value)}
+              placeholder="e.g. Senior Full Stack Engineer, Cloud Architect, Data Scientist"
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
             />
           </div>
@@ -84,20 +80,25 @@ Required competencies:
               required
               value={company}
               onChange={e => setCompany(e.target.value)}
+              placeholder="e.g. Acme Corp, Microsoft, TechVentures Inc."
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-            Full Job Description &amp; Core Requirements
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-slate-700">
+              Full Job Description &amp; Core Requirements
+            </label>
+            <span className="text-[11px] text-slate-400">Used by AI matching engine to evaluate candidate fit</span>
+          </div>
           <textarea
-            rows={6}
+            rows={7}
             required
             value={jobDescription}
             onChange={e => setJobDescription(e.target.value)}
+            placeholder="Paste or write your complete job requisition requirements, mandatory technical proficiencies, responsibilities, years of experience, and expected tools..."
             className="w-full p-3.5 rounded-xl border border-slate-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           />
         </div>

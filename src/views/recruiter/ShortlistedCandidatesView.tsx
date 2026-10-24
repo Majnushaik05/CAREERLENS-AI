@@ -1,44 +1,79 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Candidate, HiringCampaign } from '../../types';
-import { Award, Send, Mail, Phone, Users } from 'lucide-react';
+import { Award, Send, Mail, Phone, Users, ArrowRight, ExternalLink, CheckCircle2, Sliders } from 'lucide-react';
 
 interface ShortlistedCandidatesViewProps {
   campaign: HiringCampaign | null;
   candidates: Candidate[];
   onDispatchTest: (candidate: Candidate) => void;
+  onNavigate?: (tool: string) => void;
 }
 
 export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps> = ({
   campaign,
   candidates,
   onDispatchTest,
+  onNavigate,
 }) => {
-  const shortlisted = candidates.filter(c => c.status === 'Shortlisted' || c.status === 'Assessed');
+  const [minMatch, setMinMatch] = useState(60);
+  const shortlisted = candidates.filter(
+    c => (c.status === 'Shortlisted' || c.status === 'Assessed') && c.role_match >= minMatch
+  );
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl mx-auto selection:bg-purple-600 selection:text-white pb-16">
       {/* Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs">
-        <div className="text-xs font-semibold text-slate-500 mb-1">
-          <span>Talent Pool</span>
-          <span aria-hidden="true" className="mx-2">·</span>
-          <span className="text-purple-700 font-bold">Shortlisted Requisitions</span>
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>TALENT SHORTLIST &amp; DISPATCH QUEUE</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
+            Shortlisted Candidates ({shortlisted.length})
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
+            High-fit candidates screened and earmarked for technical assessments, code reviews, and structured interviews.
+          </p>
         </div>
-        <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
-          Shortlisted Candidate Pool ({shortlisted.length})
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-          Top-tier applicants qualifying past screening thresholds ready for technical assessments or direct interview scheduling.
-        </p>
+
+        {candidates.length > 0 && (
+          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-200 shrink-0">
+            <Sliders className="w-3.5 h-3.5 text-slate-500" />
+            <span className="text-xs font-bold text-slate-700">Min Fit: {minMatch}%</span>
+            <input
+              type="range"
+              min={40}
+              max={90}
+              step={5}
+              value={minMatch}
+              onChange={e => setMinMatch(parseInt(e.target.value, 10))}
+              className="w-24 accent-purple-600 cursor-pointer"
+            />
+          </div>
+        )}
       </div>
 
       {shortlisted.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 border border-slate-200/90 shadow-2xs text-center">
-          <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-bold text-slate-800 text-sm">No shortlisted candidates yet</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Navigate to &quot;Bulk Resume Screening&quot; and click &quot;Shortlist Candidate&quot; on high-match profiles.
+        <div className="bg-white rounded-3xl p-14 border border-slate-200 shadow-xs text-center space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center mx-auto mb-2">
+            <Award className="w-7 h-7" />
+          </div>
+          <h3 className="font-bold text-slate-900 text-base">No shortlisted candidates yet</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Run a bulk screening over your applicant resumes, then click &quot;Shortlist Candidate&quot; on high-match profiles to populate this priority roster.
           </p>
+          {onNavigate && (
+            <div className="pt-2">
+              <button
+                onClick={() => onNavigate('Bulk Resume Screening')}
+                className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition inline-flex items-center gap-2"
+              >
+                <span>Go to Bulk Resume Screening</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -54,34 +89,46 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
             return (
               <div
                 key={cand.id || idx}
-                className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs hover:shadow-sm transition flex flex-col justify-between"
+                className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs hover:border-purple-300 transition flex flex-col justify-between space-y-4"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold text-xs shrink-0 ${colorClass}`}>
+                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-black text-xs shrink-0 ${colorClass}`}>
                         {initials}
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-950 text-sm">{cand.name}</h3>
-                        <div className="text-xs text-slate-500 font-mono tabular-nums">Match Fit: {cand.role_match}%</div>
+                        <h3 className="font-black text-slate-950 text-sm">{cand.name}</h3>
+                        <div className="text-xs text-purple-700 font-bold font-mono">
+                          {cand.role_match}% Role Match · {cand.resume_score}/100 ATS
+                        </div>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold text-purple-700">
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                       {cand.assessment_status === 'Completed' ? 'Assessment Done' : 'Shortlisted'}
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-500 mb-4 space-y-0.5">
-                    <div>{cand.email}</div>
-                    {cand.phone && <div>{cand.phone}</div>}
+                  <div className="text-xs text-slate-600 space-y-1 mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-slate-400" />
+                      <a href={`mailto:${cand.email}`} className="hover:text-purple-600 transition truncate">
+                        {cand.email}
+                      </a>
+                    </div>
+                    {cand.phone && (
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{cand.phone}</span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 mb-6">
-                    {cand.skills.slice(0, 7).map((s, i) => (
+                  <div className="flex flex-wrap gap-1.5">
+                    {cand.skills.slice(0, 8).map((s, i) => (
                       <span
                         key={i}
-                        className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold"
+                        className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-medium"
                       >
                         {s}
                       </span>
@@ -91,12 +138,15 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
 
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                   <div className="text-xs text-slate-500">
-                    Status: <strong className="text-slate-800">{cand.assessment_status}</strong>
+                    Test Token:{' '}
+                    <strong className="text-slate-800">
+                      {cand.test_token ? 'Active / Generated' : 'Pending'}
+                    </strong>
                   </div>
 
                   <button
                     onClick={() => onDispatchTest(cand)}
-                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>Dispatch Assessment</span>

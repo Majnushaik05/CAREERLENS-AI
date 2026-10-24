@@ -99,16 +99,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
     setAuthModalOpen(false);
   };
 
-  // Gallery of realistic systems, graphs, and interfaces for rolling marquee
-  const previewImages = [
-    { src: IMAGES.systemGraphMatrix, title: 'Multi-Dimensional Score Matrix', tag: 'Graph Telemetry' },
-    { src: IMAGES.careerDashboard, title: 'System Analytics Architecture', tag: 'Core System' },
-    { src: IMAGES.analyticsMockup, title: 'ATS Resume Audit & Scoring', tag: 'Intelligence' },
-    { src: IMAGES.recruiterCenter, title: 'Recruiter Command Dashboard', tag: 'Talent Acquisition' },
-    { src: IMAGES.careerRoadmap, title: 'Career Progression Pathway', tag: 'Growth Roadmap' },
-    { src: IMAGES.heroMockup, title: 'System Analytics Overview', tag: 'Architecture' },
-  ];
-
   return (
     <div className="min-h-screen text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden">
       {/* 
@@ -173,7 +163,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
           <nav className="hidden md:flex items-center gap-8 text-xs font-semibold text-slate-300">
             <a href="#home" className="hover:text-white hover:text-blue-400 transition-colors">Home</a>
             <a href="#features" className="hover:text-white hover:text-blue-400 transition-colors">Workspace Features</a>
-            <a href="#gallery" className="hover:text-white hover:text-blue-400 transition-colors">Live Platforms</a>
             <a href="#about" className="hover:text-white hover:text-blue-400 transition-colors">About</a>
           </nav>
 
@@ -434,49 +423,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
         </div>
       </section>
 
-      {/* ROLLING IMAGES GALLERY: REALISTIC SYSTEMS & GRAPHS CAROUSEL */}
-      <section id="gallery" className="py-14 bg-slate-950/75 backdrop-blur-2xl border-y border-white/10 overflow-hidden relative z-10">
-        <div className="max-w-7xl mx-auto px-6 sm:px-12 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Live System Gallery</div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Realistic Systems, Analytics &amp; Command Centers
-            </h2>
-          </div>
-          <p className="text-xs text-slate-400 max-w-md">
-            Continuous view of real-time dashboards, progression pathways, and recruiter evaluation systems.
-          </p>
-        </div>
-
-        {/* Continuous Horizontal Rolling Images Reel */}
-        <div className="relative w-full overflow-hidden py-3">
-          <div className="animate-marquee flex gap-6">
-            {[...previewImages, ...previewImages].map((imgItem, idx) => (
-              <div
-                key={idx}
-                className="w-[320px] sm:w-[400px] shrink-0 bg-slate-900/80 rounded-2xl border border-white/15 overflow-hidden shadow-xl hover:border-blue-500/50 transition group backdrop-blur-md"
-              >
-                <div className="h-48 sm:h-56 overflow-hidden bg-slate-950 relative">
-                  <img
-                    src={imgItem.src}
-                    alt={imgItem.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500 opacity-90 group-hover:opacity-100"
-                  />
-                  <div className="absolute top-3 left-3 bg-slate-950/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-200 border border-white/15 shadow-sm">
-                    {imgItem.tag}
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-950/90 flex items-center justify-between border-t border-white/10">
-                  <div className="font-bold text-xs text-white truncate">{imgItem.title}</div>
-                  <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-950/70 border border-blue-500/30 px-2 py-0.5 rounded">
-                    Active
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* 6 COLORFUL MODULE ICONS ROW (Glassmorphic cards) */}
       <section id="features" className="py-16 bg-slate-950/60 backdrop-blur-xl px-6 sm:px-12 relative z-10">

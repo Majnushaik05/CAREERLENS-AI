@@ -23,28 +23,6 @@ interface ResumeIntelligenceViewProps {
   onClearAnalysis?: () => void;
 }
 
-const SAMPLE_TECH_RESUME = `Ananya Sharma
-ananya.sharma@example.com | +91 98450-22119 | Bengaluru, India
-linkedin.com/in/ananyasharma | github.com/ananyasharma
-
-PROFESSIONAL SUMMARY
-Results-driven Full Stack Machine Learning & Python Engineer with 3+ years experience building predictive NLP models, scalable FastAPI microservices, and React dashboards. Proven track record improving model inference latency by 35% and automating CI/CD pipelines.
-
-CORE TECHNICAL SKILLS
-Languages: Python, TypeScript, SQL, Bash
-ML & NLP: Machine Learning, NLP, Pandas, NumPy, Scikit-Learn, PyTorch, Deep Learning, Streamlit
-Frameworks & Databases: FastAPI, React, Node.js, PostgreSQL, MongoDB, Redis, Docker, AWS
-Practices: System Design, Automated Unit Testing, CI/CD, Agile
-
-WORK EXPERIENCE
-Machine Learning Engineer — Apex Cloud Innovations (2022 – Present)
-• Built automated resume classification models using Python, TF-IDF cosine similarity, and Scikit-Learn with 94% precision.
-• Optimized caching architecture with Redis and FastAPI, cutting API latency by 42% for over 150,000 active sessions.
-• Containerized production microservices with Docker and orchestrated deployment via AWS.
-
-EDUCATION
-B.Tech in Computer Science — National Institute of Technology (2018 – 2022)`;
-
 export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   analysis,
   onAnalysisComplete,
@@ -63,7 +41,20 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     setUploadedFileName(file.name);
     const reader = new FileReader();
     reader.onload = event => {
-      const text = (event.target?.result as string) || '';
+      let text = (event.target?.result as string) || '';
+      // If PDF, extract readable text tokens and strip binary metadata
+      if (text.includes('%PDF-')) {
+        const textChunks: string[] = [];
+        const tjMatches = text.match(/\(([^()]+)\)/g) || [];
+        for (const m of tjMatches) {
+          const s = m.slice(1, -1).trim();
+          if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) textChunks.push(s);
+        }
+        if (textChunks.length > 5) {
+          text = textChunks.join(' ');
+        }
+      }
+      text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
       setResumeText(text);
     };
     reader.readAsText(file);
@@ -90,12 +81,6 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLoadSample = () => {
-    setUploadedFileName('sample_ml_engineer_resume.txt');
-    setResumeText(SAMPLE_TECH_RESUME);
-    handleAnalyze(SAMPLE_TECH_RESUME);
   };
 
   const hasAnalysis = Boolean(analysis);
@@ -173,14 +158,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700">Resume Content Text</label>
-              <button
-                type="button"
-                onClick={handleLoadSample}
-                className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1"
-              >
-                <Sparkles className="w-3 h-3" />
-                <span>Load Sample ML Engineer Resume</span>
-              </button>
+              <span className="text-[11px] text-slate-400">Paste or edit raw resume text</span>
             </div>
             <textarea
               rows={5}

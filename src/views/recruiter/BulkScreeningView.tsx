@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Candidate, HiringCampaign } from '../../types';
-import { screenBatchCandidatesClientSide } from '../../services/careerService';
+import { extractResumeSkills, screenBatchCandidatesClientSide } from '../../services/careerService';
 import {
   UploadCloud,
   Users,
@@ -10,6 +10,14 @@ import {
   Phone,
   Search,
   Filter,
+  FileText,
+  Trash2,
+  Send,
+  Download,
+  AlertCircle,
+  CheckCircle2,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 
 interface BulkScreeningViewProps {
@@ -17,67 +25,190 @@ interface BulkScreeningViewProps {
   candidates: Candidate[];
   onScreenComplete: (newCandidates: Candidate[]) => void;
   onUpdateCandidate: (candidateId: string, updates: Partial<Candidate>) => void;
+  onNavigate?: (tool: string) => void;
 }
 
-const SAMPLE_BATCH_RESUMES = [
-  {
-    name: 'Alex Chen',
-    filename: 'Alex_Chen_Resume.pdf',
-    email: 'alex.chen@example.com',
-    phone: '+1 555-019-2834',
-    text: `Alex Chen
-alex.chen@example.com | +1 555-019-2834
-Senior Software Developer with 5+ years experience building Python, FastAPI, and React applications.
-Skills: Python, TypeScript, React, Node.js, FastAPI, PostgreSQL, Docker, AWS, Redis, Git, CI/CD.
-Experience: Led microservices team handling 4.5M requests daily; reduced latency by 35%.`,
-  },
-  {
-    name: 'Marcus Vance',
-    filename: 'Marcus_Vance_Resume.pdf',
-    email: 'marcus.vance@techdev.net',
-    phone: '+1 415-882-9901',
-    text: `Marcus Vance
-marcus.vance@techdev.net | +1 415-882-9901
-Full Stack Developer with 3 years building web apps.
-Skills: JavaScript, React, Python, SQL, Git, HTML, CSS, REST API.
-Experience: Developed responsive frontends and connected REST APIs with PostgreSQL.`,
-  },
-  {
-    name: 'Elena Rostova',
-    filename: 'Elena_Rostova_Resume.pdf',
-    email: 'elena.rostova@cloudscale.io',
-    phone: '+1 650-332-1144',
-    text: `Elena Rostova
-elena.rostova@cloudscale.io | +1 650-332-1144
-DevOps & Backend Engineer specializing in cloud systems.
-Skills: Docker, Kubernetes, AWS, Linux, Python, CI/CD, Terraform, Git.
-Experience: Automated infrastructure deployment, achieved 99.99% uptime, configured Prometheus.`,
-  },
-  {
-    name: 'Priya Sharma',
-    filename: 'Priya_Sharma_Resume.pdf',
-    email: 'priya.sharma@analytics.org',
-    phone: '+91 98450-22119',
-    text: `Priya Sharma
-priya.sharma@analytics.org | +91 98450-22119
-Data Analyst & Visualization Specialist.
-Skills: SQL, Excel, Power BI, Tableau, Python, Data Analysis, Statistics.
-Experience: Built executive business intelligence dashboards and automated SQL reporting.`,
-  },
-];
+interface StagedResume {
+  id: string;
+  filename: string;
+  size: number;
+  name: string;
+  email: string;
+  phone: string;
+  text: string;
+}
 
 export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
   campaign,
   candidates,
   onScreenComplete,
   onUpdateCandidate,
+  onNavigate,
 }) => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'upload' | 'paste'>('upload');
+  const [stagedFiles, setStagedFiles] = useState<StagedResume[]>([]);
+  const [pasteBatchText, setPasteBatchText] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Helper to extract candidate name from raw text
+  const parseCandidateName = (text: string, fallback: string): string => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    for (const line of lines.slice(0, 5)) {
+      if (line.length > 2 && line.length < 40 && !line.includes('@') && !line.includes('http') && !line.toLowerCase().includes('resume')) {
+        return line.replace(/^[#*\-•\s]+/, '').trim();
+      }
+    }
+    return fallback.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+  };
+
+  // Helper to extract email
+  const parseCandidateEmail = (text: string): string => {
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    return emailMatch ? emailMatch[0] : 'candidate@applied.net';
+  };
+
+  // Helper to extract phone
+  const parseCandidatePhone = (text: string): string => {
+    const phoneMatch = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+    return phoneMatch ? phoneMatch[0] : '';
+  };
+
+  // Handle multi-file selection
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setErrorMessage(null);
+    const newStaged: StagedResume[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const textContent = await readFileAsText(file);
+        const name = parseCandidateName(textContent, file.name);
+        const email = parseCandidateEmail(textContent);
+        const phone = parseCandidatePhone(textContent);
+
+        newStaged.push({
+          id: `staged_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
+          filename: file.name,
+          size: file.size,
+          name,
+          email,
+          phone,
+          text: textContent,
+        });
+      } catch (err) {
+        console.warn(`Failed to read ${file.name}:`, err);
+      }
+    }
+
+    if (newStaged.length > 0) {
+      setStagedFiles(prev => [...prev, ...newStaged]);
+      setSuccessMessage(`Loaded ${newStaged.length} resume(s). Ready for bulk screening.`);
+      setTimeout(() => setSuccessMessage(null), 3500);
+    }
+
+    // Reset input so same files can be re-selected if desired
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        let text = (ev.target?.result as string) || '';
+        // Extract plain strings from PDF structure if raw PDF
+        if (text.includes('%PDF-')) {
+          const chunks: string[] = [];
+          const matches = text.match(/\(([^()]+)\)/g) || [];
+          for (const m of matches) {
+            const s = m.slice(1, -1).trim();
+            if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) chunks.push(s);
+          }
+          if (chunks.length > 5) text = chunks.join(' ');
+        }
+        text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        resolve(text);
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  };
+
+  const removeStagedFile = (id: string) => {
+    setStagedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const clearStagedFiles = () => {
+    setStagedFiles([]);
+  };
+
+  // Parse pasted batch resumes (separated by `---` or double line breaks)
+  const handleParsePastedBatch = () => {
+    if (!pasteBatchText.trim()) {
+      setErrorMessage('Please paste at least one candidate resume into the box.');
+      return;
+    }
+
+    const rawBlocks = pasteBatchText
+      .split(/\n\s*---\s*\n|\n{3,}/)
+      .map(b => b.trim())
+      .filter(b => b.length > 30);
+
+    if (rawBlocks.length === 0) {
+      setErrorMessage('Could not detect distinct resumes. Separate candidate resumes with --- or empty lines.');
+      return;
+    }
+
+    const newStaged: StagedResume[] = rawBlocks.map((block, idx) => {
+      const name = parseCandidateName(block, `Candidate ${stagedFiles.length + idx + 1}`);
+      const email = parseCandidateEmail(block);
+      const phone = parseCandidatePhone(block);
+
+      return {
+        id: `pasted_${Date.now()}_${idx}`,
+        filename: `${name.replace(/\s+/g, '_')}_Resume.txt`,
+        size: block.length,
+        name,
+        email,
+        phone,
+        text: block,
+      };
+    });
+
+    setStagedFiles(prev => [...prev, ...newStaged]);
+    setPasteBatchText('');
+    setActiveTab('upload');
+    setSuccessMessage(`Parsed ${newStaged.length} candidate resume(s) from pasted text!`);
+    setTimeout(() => setSuccessMessage(null), 3500);
+  };
+
+  // Run bulk screening against the campaign job description
   const handleRunBatchScreening = async () => {
+    if (stagedFiles.length === 0) {
+      setErrorMessage('Please upload or paste resume files before running bulk screening.');
+      return;
+    }
+
+    const jd = campaign?.job_description || `Software Engineer requiring strong technical fundamentals, system design, modern frameworks, databases, and problem solving.`;
+
     setLoading(true);
-    const jd = campaign?.job_description || `Software Engineer requiring Python, React, FastAPI, SQL, Docker, and AWS.`;
+    setErrorMessage(null);
+
+    const payloadResumes = stagedFiles.map(f => ({
+      name: f.name,
+      filename: f.filename,
+      email: f.email,
+      phone: f.phone,
+      text: f.text,
+    }));
 
     try {
       const res = await fetch('/api/recruiter/screen', {
@@ -85,7 +216,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_description: jd,
-          resumes: SAMPLE_BATCH_RESUMES,
+          resumes: payloadResumes,
         }),
       });
 
@@ -93,16 +224,23 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       if (res.ok && contentType.includes('application/json')) {
         const screenedList: Candidate[] = await res.json();
         onScreenComplete(screenedList);
+        setStagedFiles([]);
         setLoading(false);
+        setSuccessMessage(`Screened and ranked ${screenedList.length} candidate(s) successfully!`);
+        setTimeout(() => setSuccessMessage(null), 3500);
         return;
       }
     } catch (e) {
-      // fallback
+      console.warn('API screening fallback to client parser:', e);
     }
 
-    const fallbackList = screenBatchCandidatesClientSide(jd, SAMPLE_BATCH_RESUMES);
+    // Client fallback with strict regex catalog
+    const fallbackList = screenBatchCandidatesClientSide(jd, payloadResumes);
     onScreenComplete(fallbackList);
+    setStagedFiles([]);
     setLoading(false);
+    setSuccessMessage(`Screened and ranked ${fallbackList.length} candidate(s) successfully!`);
+    setTimeout(() => setSuccessMessage(null), 3500);
   };
 
   const toggleShortlist = (cand: Candidate) => {
@@ -116,43 +254,259 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     c.skills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const handleExportCSV = () => {
+    if (candidates.length === 0) return;
+    const headers = ['Name', 'Email', 'Phone', 'Role Match %', 'Score', 'Status', 'Skills'];
+    const rows = candidates.map(c => [
+      `"${c.name}"`,
+      `"${c.email}"`,
+      `"${c.phone || ''}"`,
+      c.role_match,
+      c.resume_score,
+      `"${c.status}"`,
+      `"${c.skills.join(', ')}"`,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `screened_candidates_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl mx-auto selection:bg-purple-600 selection:text-white pb-16">
       {/* Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div>
-          <div className="text-xs font-semibold text-slate-500 mb-1">
-            <span>Automated Ranking</span>
-            <span aria-hidden="true" className="mx-2">·</span>
-            <span className="text-purple-700 font-bold">Bulk Sieve</span>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <span className="w-2 h-2 rounded-full bg-purple-600 animate-pulse" />
+            <span>BULK APPLICANT SCREENING &amp; COHORT RANKING</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
-            Bulk Candidate Screening &amp; Cohort Ranking
+            Bulk Candidate Resume Screening
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
-            Audit applicant batches against the active requisition:{' '}
-            <span className="font-bold text-slate-900">{campaign?.role || 'Software Engineer'}</span>.
+            {campaign ? (
+              <>
+                Screening against active campaign:{' '}
+                <strong className="text-slate-900">{campaign.role}</strong> ({campaign.company})
+              </>
+            ) : (
+              <>
+                No active campaign selected.{' '}
+                <button
+                  onClick={() => onNavigate && onNavigate('Hiring Campaign')}
+                  className="text-purple-600 font-bold hover:underline"
+                >
+                  Configure Hiring Campaign →
+                </button>
+              </>
+            )}
           </p>
         </div>
 
-        <button
-          onClick={handleRunBatchScreening}
-          disabled={loading}
-          className="px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition flex items-center gap-2 shrink-0"
-        >
-          {loading ? (
-            <span>Screening Applicant Batch...</span>
-          ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              <span>Screen Sample Candidate Cohort</span>
-            </>
+        <div className="flex items-center gap-2 shrink-0">
+          {candidates.length > 0 && (
+            <button
+              onClick={handleExportCSV}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition flex items-center gap-1.5"
+            >
+              <Download className="w-4 h-4 text-slate-500" />
+              <span>Export CSV</span>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-2"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Select Multiple Resumes</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.txt,.docx,.doc,.md"
+            onChange={handleFilesSelected}
+            className="hidden"
+          />
+        </div>
+      </div>
+
+      {/* FEEDBACK BANNERS */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button onClick={() => setErrorMessage(null)} className="text-xs font-bold hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* BATCH INGESTION CONTROLS (Multi-File Dropzone & Text Ingestion) */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+        {/* Tab switch between File Upload and Text Paste */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('upload')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                activeTab === 'upload'
+                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Upload Multiple Resume Files ({stagedFiles.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('paste')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                activeTab === 'paste'
+                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Paste Batch Resumes
+            </button>
+          </div>
+
+          {stagedFiles.length > 0 && (
+            <button
+              onClick={clearStagedFiles}
+              className="text-xs text-rose-600 hover:text-rose-700 font-bold transition"
+            >
+              Clear Staged ({stagedFiles.length})
+            </button>
+          )}
+        </div>
+
+        {activeTab === 'upload' ? (
+          <div className="space-y-4">
+            {/* Drag & Drop Area */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => {
+                e.preventDefault();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const input = fileInputRef.current;
+                  if (input) {
+                    input.files = e.dataTransfer.files;
+                    handleFilesSelected({ target: input } as any);
+                  }
+                }
+              }}
+              className="border-2 border-dashed border-slate-200 hover:border-purple-400 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-purple-50/20 transition group text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <UploadCloud className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">
+                Drop multiple candidate resumes here, or <span className="text-purple-600 underline">browse files</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Select 1 to 50+ resume files at once (.pdf, .txt, .docx, .md). Genuine candidate skills and contacts will be parsed.
+              </p>
+            </div>
+
+            {/* Staged Resumes Queue */}
+            {stagedFiles.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>Staged Resumes Ready for Screening ({stagedFiles.length})</span>
+                  <span className="text-slate-400 font-normal">Click &apos;Execute Screening&apos; below to audit against campaign</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-1">
+                  {stagedFiles.map((file, idx) => (
+                    <div
+                      key={file.id}
+                      className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileText className="w-4 h-4 text-purple-600 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 truncate">{file.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{file.filename} · {Math.round(file.size / 1024)} KB</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          removeStagedFile(file.id);
+                        }}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition shrink-0"
+                        title="Remove file"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={handleRunBatchScreening}
+                    disabled={loading}
+                    className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-purple-600/20 transition flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Evaluating Applicant Batch Against JD...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Execute Bulk Screening ({stagedFiles.length} Resumes)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-slate-700">
+              Paste Batch Resumes (Separate multiple resumes with <code className="bg-slate-100 px-1.5 py-0.5 rounded text-purple-700">---</code>)
+            </label>
+            <textarea
+              rows={8}
+              value={pasteBatchText}
+              onChange={e => setPasteBatchText(e.target.value)}
+              placeholder="Candidate Name&#10;candidate@email.com | +1 555-0123&#10;Skills: Python, React, PostgreSQL, Docker...&#10;Experience: ...&#10;&#10;---&#10;&#10;Second Candidate Name&#10;second@email.com&#10;Skills: TypeScript, AWS, Node.js..."
+              className="w-full p-3.5 rounded-xl border border-slate-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={handleParsePastedBatch}
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition flex items-center gap-1.5"
+              >
+                <span>Parse &amp; Stage Resumes</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Screened Candidates Leaderboard */}
-      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-2xs space-y-4">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-base font-black text-slate-950">
@@ -173,17 +527,18 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         </div>
 
         {candidates.length === 0 ? (
-          <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl">
+          <div className="text-center py-14 border-2 border-dashed border-slate-200 rounded-2xl">
             <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <h3 className="font-bold text-slate-700 text-sm">No candidates screened in current campaign</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
-              Click &quot;Screen Sample Candidate Cohort&quot; above to run automated ranking.
+            <h3 className="font-bold text-slate-700 text-sm">No candidates screened yet</h3>
+            <p className="text-xs text-slate-400 mt-1 mb-4 max-w-md mx-auto">
+              Upload candidate resumes above using the multi-file selector or drag-and-drop zone to run genuine NLP screening against your campaign.
             </p>
             <button
-              onClick={handleRunBatchScreening}
-              className="px-4 py-2 rounded-xl bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-5 py-2.5 rounded-xl bg-purple-50 text-purple-700 font-bold text-xs hover:bg-purple-100 transition inline-flex items-center gap-1.5"
             >
-              Load &amp; Screen Cohort
+              <UploadCloud className="w-4 h-4" />
+              <span>Select Resume Files</span>
             </button>
           </div>
         ) : (
@@ -211,22 +566,32 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-extrabold text-slate-900 text-sm">{cand.name}</span>
-                        <span className="text-xs font-mono font-bold tabular-nums text-slate-700">
+                        <span className="text-xs font-mono font-bold tabular-nums text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
                           {cand.role_match}% Match
                         </span>
                         {isShortlisted && (
-                          <span className="text-[11px] font-bold text-purple-700">
-                            · Shortlisted
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Shortlisted
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                        <span>{cand.email}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{cand.phone}</span>
+                        <span className="flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-slate-400" />
+                          <span>{cand.email}</span>
+                        </span>
+                        {cand.phone && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{cand.phone}</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
-                        {cand.skills.slice(0, 6).map((sk, sIdx) => (
+                        {cand.skills.map((sk, sIdx) => (
                           <span
                             key={sIdx}
                             className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-medium"

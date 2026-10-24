@@ -68,24 +68,52 @@ export const App: React.FC = () => {
       console.warn('Storage sync error:', err);
     }
   };
-  const [campaign, setCampaign] = useState<HiringCampaign | null>({
-    id: 'camp_init',
-    title: 'Senior Full Stack Software Engineer at Apex Cloud Innovations',
-    role: 'Senior Full Stack Software Engineer',
-    company: 'Apex Cloud Innovations',
-    job_description: `Senior Full Stack Engineer
-We are seeking an experienced Full Stack Developer to build and scale distributed microservices and modern React applications.
-Required competencies:
-• 4+ years Python, FastAPI, and React with TypeScript
-• Proficiency in PostgreSQL, Docker containerization, and AWS
-• Clean REST API design, CI/CD pipelines, and automated testing`,
-    passing_score: 70,
-    duration_minutes: 30,
-    question_count: 10,
-    created_at: new Date().toISOString(),
+  const [campaign, setCampaign] = useState<HiringCampaign | null>(() => {
+    try {
+      const saved = localStorage.getItem('careerlens_hiring_campaign');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const handleSetCampaign = (newCampaign: HiringCampaign | null) => {
+    setCampaign(newCampaign);
+    try {
+      if (newCampaign) {
+        localStorage.setItem('careerlens_hiring_campaign', JSON.stringify(newCampaign));
+      } else {
+        localStorage.removeItem('careerlens_hiring_campaign');
+      }
+    } catch (err) {
+      console.warn('Campaign storage sync error:', err);
+    }
+  };
+
+  const [candidates, setCandidates] = useState<Candidate[]>(() => {
+    try {
+      const saved = localStorage.getItem('careerlens_candidates');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleSetCandidates = (newCandidates: Candidate[]) => {
+    setCandidates(newCandidates);
+    try {
+      localStorage.setItem('careerlens_candidates', JSON.stringify(newCandidates));
+    } catch (err) {
+      console.warn('Candidates storage sync error:', err);
+    }
+  };
+
+  const [candidateToDispatch, setCandidateToDispatch] = useState<Candidate | null>(null);
+
+  const handleUpdateCandidate = (candidateId: string, updates: Partial<Candidate>) => {
+    const updated = candidates.map(c => (c.id === candidateId ? { ...c, ...updates } : c));
+    handleSetCandidates(updated);
+  };
 
   // If candidate is accessing via public assessment link (?assessment=token)
   if (assessmentToken) {
@@ -139,10 +167,6 @@ Required competencies:
     setActiveTool('Dashboard');
   };
 
-  const handleUpdateCandidate = (id: string, updates: Partial<Candidate>) => {
-    setCandidates(prev => prev.map(c => (c.id === id ? { ...c, ...updates } : c)));
-  };
-
   const renderActiveTool = () => {
     if (workspace === 'Job Seeker Workspace') {
       switch (activeTool) {
@@ -187,14 +211,15 @@ Required competencies:
     } else {
       switch (activeTool) {
         case 'Hiring Campaign':
-          return <HiringCampaignView campaign={campaign} onSaveCampaign={setCampaign} />;
+          return <HiringCampaignView campaign={campaign} onSaveCampaign={handleSetCampaign} />;
         case 'Bulk Resume Screening':
           return (
             <BulkScreeningView
               campaign={campaign}
               candidates={candidates}
-              onScreenComplete={setCandidates}
+              onScreenComplete={handleSetCandidates}
               onUpdateCandidate={handleUpdateCandidate}
+              onNavigate={setActiveTool}
             />
           );
         case 'Shortlisted Candidates':
@@ -202,7 +227,9 @@ Required competencies:
             <ShortlistedCandidatesView
               campaign={campaign}
               candidates={candidates}
+              onNavigate={setActiveTool}
               onDispatchTest={cand => {
+                setCandidateToDispatch(cand);
                 setActiveTool('Assessment Dispatcher');
               }}
             />
@@ -212,6 +239,7 @@ Required competencies:
             <AssessmentDispatcherView
               campaign={campaign}
               candidates={candidates}
+              preselectedCandidate={candidateToDispatch}
               onUpdateCandidate={handleUpdateCandidate}
             />
           );
@@ -231,7 +259,7 @@ Required competencies:
               campaign={campaign}
               candidates={candidates}
               onNavigate={setActiveTool}
-              onClearCandidates={() => setCandidates([])}
+              onClearCandidates={() => handleSetCandidates([])}
             />
           );
       }

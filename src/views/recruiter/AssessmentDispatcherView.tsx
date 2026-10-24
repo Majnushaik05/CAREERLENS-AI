@@ -5,15 +5,19 @@ import { Send, Copy, Check, ExternalLink, Mail, Clock, AlertCircle } from 'lucid
 interface AssessmentDispatcherViewProps {
   campaign: HiringCampaign | null;
   candidates: Candidate[];
+  preselectedCandidate?: Candidate | null;
   onUpdateCandidate: (candidateId: string, updates: Partial<Candidate>) => void;
 }
 
 export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> = ({
   campaign,
   candidates,
+  preselectedCandidate,
   onUpdateCandidate,
 }) => {
-  const [selectedCandidateId, setSelectedCandidateId] = useState(candidates[0]?.id || '');
+  const [selectedCandidateId, setSelectedCandidateId] = useState(
+    preselectedCandidate?.id || candidates[0]?.id || ''
+  );
   const [durationMinutes, setDurationMinutes] = useState(campaign?.duration_minutes || 30);
   const [questionCount, setQuestionCount] = useState(campaign?.question_count || 10);
   const [loading, setLoading] = useState(false);
@@ -21,7 +25,14 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
   const [copied, setCopied] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
-  const selectedCandidate = candidates.find(c => c.id === selectedCandidateId) || candidates[0];
+  // Sync if preselectedCandidate changes
+  React.useEffect(() => {
+    if (preselectedCandidate) {
+      setSelectedCandidateId(preselectedCandidate.id);
+    }
+  }, [preselectedCandidate]);
+
+  const selectedCandidate = candidates.find(c => c.id === selectedCandidateId) || preselectedCandidate || candidates[0];
 
   const handleGenerateLink = async () => {
     if (!selectedCandidate) return;

@@ -25,8 +25,8 @@ interface MockInterviewViewProps {
 }
 
 export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }) => {
-  const [role, setRole] = useState(analysis?.target_role || 'Senior Software Engineer');
-  const [company, setCompany] = useState('Apex Cloud Innovations');
+  const [role, setRole] = useState(analysis?.target_role || 'Software Developer');
+  const [company, setCompany] = useState('');
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [currentAnswer, setCurrentAnswer] = useState('');
@@ -202,20 +202,6 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
     } else {
       startListening();
     }
-  };
-
-  // Sample STAR Answer Dictation helper for flawless demo and fallback
-  const handleDictateSample = () => {
-    const starResponses: Record<number, string> = {
-      0: `In my engineering background, I have focused on scalable web architecture and data systems. For instance, at my previous organization, I led the redesign of our core API layer using FastAPI, PostgreSQL, and Redis, which reduced latency by 35% and supported over 100,000 active sessions.`,
-      1: `I chose the ${role} path because I thrive on architecting distributed solutions that solve critical business bottlenecks. Joining ${company || 'your organization'} offers the opportunity to apply these problem-solving skills to high-impact production challenges.`,
-      2: `During a high-concurrency production event, our database connection pool became saturated due to unindexed queries. I immediately introduced read replicas, optimized queries with composite indexes, and implemented circuit breakers, preventing cascading service outages.`,
-      3: `When faced with competing sprint priorities, I align with team leads using impact-effort scoring. I prioritize mission-critical reliability fixes first, followed by feature deliverables, ensuring clear visibility through daily standups and updated ticket metrics.`,
-    };
-
-    const sample = starResponses[transcript.length] || `I prioritize test-driven development, continuous integration, and clean modular code architecture to ensure high maintainability and low defect density.`;
-    setCurrentAnswer(sample);
-    setMicStatusMsg('Sample STAR answer transcribed into answer box.');
   };
 
   const startInterview = async () => {
@@ -590,17 +576,6 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
                         <span>Speak Answer (Voice Mic)</span>
                       </>
                     )}
-                  </button>
-
-                  {/* 1-Click Dictate Sample STAR Response for quick voice testing */}
-                  <button
-                    type="button"
-                    onClick={handleDictateSample}
-                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 flex items-center gap-1.5 transition"
-                    title="Insert role-tailored STAR model response"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                    <span>Dictate STAR Answer</span>
                   </button>
 
                   {currentAnswer.trim() && (
