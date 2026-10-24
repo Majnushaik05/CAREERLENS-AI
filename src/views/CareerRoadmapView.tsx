@@ -1,4 +1,3 @@
-```tsx
 import React, { useMemo, useState } from 'react';
 import {
   Target,
@@ -266,7 +265,11 @@ function createRoadmap(role: string): RoadmapMilestone[] {
   ];
 
   return phases.map((phase, index) => ({
-    id: `${role.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${index + 1}`,
+    // FIX: use string concatenation instead of a template literal here.
+    id:
+      role.toLowerCase().replace(/[^a-z0-9]+/g, '-') +
+      '-' +
+      (index + 1),
     title: phase.title,
     description: phase.description,
     duration: phase.duration,
@@ -428,7 +431,7 @@ const CareerRoadmapView: React.FC = () => {
                 <option key={role} value={role}>
                   {role}
                 </option>
-              )}
+              ))}
             </select>
           </div>
 
@@ -560,139 +563,4 @@ const CareerRoadmapView: React.FC = () => {
 
                     <p className="mt-1 text-sm text-slate-500">
                       {milestone.description}
-                    </p>
-                  </div>
-
-                  <div className="shrink-0 text-slate-400">
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5" />
-                    )}
-                  </div>
-                </button>
-
-                {isExpanded && (
-                  <div className="border-t border-slate-100 p-5 sm:p-6">
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                      <div>
-                        <h4 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                          <BookOpen className="h-4 w-4 text-purple-600" />
-                          Skills to develop
-                        </h4>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {milestone.skills.map((skill) => (
-                            <span
-                              key={skill}
-                              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-
-                        <h4 className="mt-6 flex items-center gap-2 text-sm font-bold text-slate-900">
-                          <CheckCircle2 className="h-4 w-4 text-purple-600" />
-                          Suggested activities
-                        </h4>
-
-                        <ul className="mt-3 space-y-3">
-                          {milestone.tasks.map((task) => (
-                            <li
-                              key={task}
-                              className="flex items-start gap-2 text-sm leading-6 text-slate-600"
-                            >
-                              <Circle className="mt-1 h-4 w-4 shrink-0 text-slate-300" />
-                              {task}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="space-y-5">
-                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
-                          <h4 className="flex items-center gap-2 text-sm font-bold text-indigo-900">
-                            <Rocket className="h-4 w-4" />
-                            Recommended project
-                          </h4>
-
-                          <p className="mt-2 text-sm leading-6 text-indigo-900/80">
-                            {milestone.project}
-                          </p>
-
-                          <p className="mt-3 text-xs leading-5 text-indigo-800">
-                            Tip: Save your work in a version-controlled
-                            repository and document what you learned.
-                          </p>
-                        </div>
-
-                        <div>
-                          <label
-                            htmlFor={`status-${milestone.id}`}
-                            className="mb-2 block text-sm font-bold text-slate-800"
-                          >
-                            Update phase status
-                          </label>
-
-                          <select
-                            id={`status-${milestone.id}`}
-                            value={milestone.status}
-                            onChange={(event) =>
-                              updateStatus(
-                                milestone.id,
-                                event.target.value as MilestoneStatus
-                              )
-                            }
-                            className="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm outline-none focus:border-purple-500"
-                          >
-                            <option value="Not Started">
-                              Not Started
-                            </option>
-                            <option value="In Progress">
-                              In Progress
-                            </option>
-                            <option value="Completed">
-                              Completed
-                            </option>
-                          </select>
-
-                          <p className="mt-2 text-xs text-slate-500">
-                            Progress updates immediately in this view.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50 to-indigo-50 p-5 sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="rounded-xl bg-white p-3 text-purple-700 shadow-sm">
-            <TrendingUp className="h-6 w-6" />
-          </div>
-
-          <div>
-            <h2 className="font-black text-slate-900">
-              Your next step matters
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Follow one phase at a time. Focus on practical skills,
-              meaningful projects, and measurable progress rather than
-              rushing through topics. Adjust the schedule to your current
-              skill level and available study time.
-            </p>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-};
-
-export default CareerRoadmapView;
-```
+              
