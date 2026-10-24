@@ -1,5 +1,4 @@
-
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Clock,
   CalendarClock,
@@ -41,19 +40,17 @@ type ViewState =
 const API_BASE = '';
 
 const formatTime = (seconds: number) => {
-  const safeSeconds = Math.max(0, seconds);
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remainingSeconds = safeSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
 
-  return hours > 0
-    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(
-        2,
-        '0'
-      )}:${String(remainingSeconds).padStart(2, '0')}`
-    : `${String(minutes).padStart(2, '0')}:${String(
-        remainingSeconds
-      ).padStart(2, '0')}`;
+  if (hours > 0) {
+    return pad(hours) + ':' + pad(minutes) + ':' + pad(remainingSeconds);
+  }
+
+  return pad(minutes) + ':' + pad(remainingSeconds);
 };
 
 const formatDate = (value: string) => {
@@ -67,16 +64,6 @@ const formatDate = (value: string) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
-};
-
-const getRemainingSeconds = (dateString: string) => {
-  const timestamp = new Date(dateString).getTime();
-
-  if (!Number.isFinite(timestamp)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor((timestamp - Date.now()) / 1000));
 };
 
 const getErrorMessage = (data: unknown, fallback: string) => {
@@ -112,6 +99,7 @@ const PublicAssessmentView: React.FC = () => {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [countdownSeconds, setCountdownSeconds] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const submissionLock = useRef(false);
 
   const token = new URLSearchParams(window.location.search).get('token');
 
@@ -306,7 +294,12 @@ const PublicAssessmentView: React.FC = () => {
   };
 
   const submitAssessment = async (automatic = false) => {
-    if (!assessment || submitting || viewState === 'submitted') {
+    if (
+      !assessment ||
+      submitting ||
+      submissionLock.current ||
+      viewState === 'submitted'
+    ) {
       return;
     }
 
@@ -327,6 +320,7 @@ const PublicAssessmentView: React.FC = () => {
       }
     }
 
+    submissionLock.current = true;
     setSubmitting(true);
     setViewState('submitting');
 
@@ -363,6 +357,7 @@ const PublicAssessmentView: React.FC = () => {
       // Do not display score, answer key, or evaluation to the candidate.
       setViewState('submitted');
     } catch (error) {
+      submissionLock.current = false;
       setErrorMessage(
         error instanceof Error
           ? error.message
