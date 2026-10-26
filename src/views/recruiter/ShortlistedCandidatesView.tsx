@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Candidate, HiringCampaign } from '../../types';
-import { Award, Send, Mail, Phone, ArrowRight } from 'lucide-react';
+import { Award, Send, Mail, Phone, Users, ArrowRight, ExternalLink, CheckCircle2 } from 'lucide-react';
 
 interface ShortlistedCandidatesViewProps {
   campaign: HiringCampaign | null;
@@ -15,7 +15,10 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
   onDispatchTest,
   onNavigate,
 }) => {
-  const shortlisted = candidates.filter(c => c.status === 'Shortlisted' || c.status === 'Assessed');
+  // Show all shortlisted and assessed candidates directly without any threshold filter
+  const shortlisted = candidates.filter(
+    c => c.status === 'Shortlisted' || c.status === 'Assessed'
+  );
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto selection:bg-purple-600 selection:text-white pb-16">
@@ -30,11 +33,16 @@ export const ShortlistedCandidatesView: React.FC<ShortlistedCandidatesViewProps>
             Shortlisted Candidates ({shortlisted.length})
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-            Every candidate you explicitly shortlist appears here. Duplicate resumes are consolidated during screening.
+            All shortlisted candidates screened and selected for role assessments, technical evaluations, and interview pipelines.
           </p>
         </div>
 
-
+        {shortlisted.length > 0 && (
+          <div className="flex items-center gap-2 bg-purple-50 px-3.5 py-1.5 rounded-2xl border border-purple-200 text-xs font-bold text-purple-800 shrink-0">
+            <CheckCircle2 className="w-4 h-4 text-purple-600" />
+            <span>{shortlisted.length} Priority Candidate{shortlisted.length === 1 ? '' : 's'} Ready</span>
+          </div>
+        )}
       </div>
 
       {shortlisted.length === 0 ? (

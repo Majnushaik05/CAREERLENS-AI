@@ -1,566 +1,434 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
+import { ResumeAnalysis } from '../types';
 import {
-  Target,
   Compass,
-  BookOpen,
-  Code2,
-  BriefcaseBusiness,
   CheckCircle2,
   Circle,
-  Clock,
+  Sparkles,
+  ArrowRight,
   TrendingUp,
-  ChevronDown,
-  ChevronUp,
-  GraduationCap,
-  Rocket,
-  RotateCcw,
-  Trophy,
+  Award,
+  Layers,
+  Code,
+  Calendar,
+  DollarSign,
+  Check,
+  Target,
+  Briefcase,
+  ChevronRight,
+  BookOpen
 } from 'lucide-react';
 
-type MilestoneStatus = 'Not Started' | 'In Progress' | 'Completed';
+interface CareerRoadmapViewProps {
+  analysis: ResumeAnalysis | null;
+}
 
 interface RoadmapMilestone {
-  id: string;
+  id: number;
+  phase: string;
   title: string;
+  level: string;
+  timeline: string;
+  salaryBand: string;
   description: string;
-  duration: string;
-  skills: string[];
-  tasks: string[];
-  project: string;
-  icon: React.ReactNode;
-  status: MilestoneStatus;
+  targetCompetencies: string[];
+  capstoneDeliverable: string;
+  interviewGate: string;
+  completed: boolean;
 }
 
-const CAREER_ROLES = [
-  'AI Engineer',
-  'Machine Learning Engineer',
-  'Data Scientist',
-  'Data Analyst',
-  'Software Developer',
+const ROLE_PRESETS = [
+  'Senior Software Engineer',
   'Full Stack Developer',
-  'Frontend Developer',
-  'Backend Developer',
-  'DevOps Engineer',
-  'Cloud Engineer',
-  'Cybersecurity Analyst',
-  'UI/UX Designer',
-  'Product Manager',
-  'Business Analyst',
-  'Digital Marketing Specialist',
-  'HR Specialist',
-  'Financial Analyst',
-  'Custom Role',
+  'DevOps & Cloud Architect',
+  'AI / Machine Learning Engineer',
+  'Data Scientist',
+  'Engineering Manager',
 ];
 
-const ROADMAP_TEMPLATES: Record<
-  string,
-  { skills: string[][]; projects: string[] }
-> = {
-  'AI Engineer': {
-    skills: [
-      ['Python', 'Programming fundamentals', 'Git and GitHub'],
-      ['NumPy', 'Pandas', 'Statistics', 'Linear algebra'],
-      ['Scikit-learn', 'Model evaluation', 'Feature engineering'],
-      ['PyTorch or TensorFlow', 'Neural networks', 'Deep learning'],
-      ['LLMs', 'Embeddings', 'RAG', 'Prompt engineering'],
-      ['FastAPI', 'Docker basics', 'Deployment', 'Monitoring'],
-    ],
-    projects: [
-      'Build a Python application and publish it on GitHub.',
-      'Analyze a real dataset and create visualizations.',
-      'Train and evaluate a machine-learning model.',
-      'Build an image, text, or time-series deep-learning project.',
-      'Create a document-question-answering application using an LLM.',
-      'Deploy an AI application with a usable interface and documentation.',
-    ],
-  },
-  'Machine Learning Engineer': {
-    skills: [
-      ['Python', 'Git', 'Data structures'],
-      ['NumPy', 'Pandas', 'Statistics', 'SQL'],
-      ['Scikit-learn', 'Feature engineering', 'Validation'],
-      ['PyTorch', 'Neural networks', 'Experiment tracking'],
-      ['ML pipelines', 'APIs', 'Docker'],
-      ['Model serving', 'Monitoring', 'Cloud fundamentals'],
-    ],
-    projects: [
-      'Create a reusable Python data-processing package.',
-      'Analyze a dataset using SQL and Python.',
-      'Build a classification model with proper evaluation.',
-      'Compare models and document the experiments.',
-      'Serve a model through a REST API.',
-      'Deploy a model and document how to monitor it.',
-    ],
-  },
-  'Data Scientist': {
-    skills: [
-      ['Python', 'SQL', 'Git'],
-      ['Pandas', 'Data cleaning', 'Data visualization'],
-      ['Probability', 'Statistics', 'Hypothesis testing'],
-      ['Scikit-learn', 'Regression', 'Classification'],
-      ['Feature engineering', 'Experiment design', 'Model interpretation'],
-      ['Storytelling', 'Dashboards', 'Business communication'],
-    ],
-    projects: [
-      'Write Python scripts to clean and analyze data.',
-      'Produce an exploratory data analysis report.',
-      'Analyze a business question using statistical methods.',
-      'Build and evaluate a predictive model.',
-      'Explain model results and limitations.',
-      'Publish a complete end-to-end data science case study.',
-    ],
-  },
-  'Data Analyst': {
-    skills: [
-      ['Excel', 'Spreadsheets', 'Data fundamentals'],
-      ['SQL', 'Joins', 'Aggregations', 'Window functions'],
-      ['Power BI or Tableau', 'Dashboard design'],
-      ['Python', 'Pandas', 'Data cleaning'],
-      ['Statistics', 'KPIs', 'Business analysis'],
-      ['Presentation', 'Portfolio', 'Interview preparation'],
-    ],
-    projects: [
-      'Create a spreadsheet report with formulas and charts.',
-      'Answer business questions using SQL.',
-      'Build an interactive business dashboard.',
-      'Analyze a dataset using Python.',
-      'Write recommendations based on measurable KPIs.',
-      'Publish three case studies in a professional portfolio.',
-    ],
-  },
-  'Software Developer': {
-    skills: [
-      ['One programming language', 'Git', 'Problem solving'],
-      ['Data structures', 'Algorithms', 'OOP'],
-      ['HTTP', 'APIs', 'Testing'],
-      ['SQL', 'Database design', 'Authentication'],
-      ['Frameworks', 'Clean code', 'System design basics'],
-      ['Deployment', 'Documentation', 'Interview preparation'],
-    ],
-    projects: [
-      'Build a command-line application.',
-      'Solve coding problems and document solutions.',
-      'Create a tested REST API.',
-      'Build an application connected to a database.',
-      'Create and test a complete full-stack project.',
-      'Deploy a project and publish a portfolio.',
-    ],
-  },
-  'Full Stack Developer': {
-    skills: [
-      ['HTML', 'CSS', 'JavaScript', 'Git'],
-      ['TypeScript', 'React', 'Responsive design'],
-      ['Node.js', 'Express', 'REST APIs'],
-      ['SQL or PostgreSQL', 'Data modeling', 'Authentication'],
-      ['Testing', 'Security basics', 'Performance'],
-      ['Deployment', 'CI/CD basics', 'Portfolio'],
-    ],
-    projects: [
-      'Build a responsive personal website.',
-      'Create a React application with reusable components.',
-      'Develop a REST API with validation and error handling.',
-      'Connect a frontend and backend to a database.',
-      'Add authentication and automated tests.',
-      'Deploy a full-stack application and document its architecture.',
-    ],
-  },
-  'Frontend Developer': {
-    skills: [
-      ['HTML', 'CSS', 'JavaScript', 'Git'],
-      ['Responsive design', 'Accessibility', 'Flexbox', 'Grid'],
-      ['React', 'Components', 'Hooks'],
-      ['TypeScript', 'API integration', 'State management'],
-      ['Testing', 'Performance', 'Browser tools'],
-      ['Deployment', 'Portfolio', 'Interview preparation'],
-    ],
-    projects: [
-      'Create a responsive landing page.',
-      'Rebuild a website layout for mobile and desktop.',
-      'Build a React application with multiple views.',
-      'Create a typed application that consumes an API.',
-      'Add tests, accessibility improvements, and performance checks.',
-      'Publish a portfolio with three polished projects.',
-    ],
-  },
-  'Backend Developer': {
-    skills: [
-      ['Python, JavaScript, Java, or another language', 'Git'],
-      ['HTTP', 'REST APIs', 'Validation'],
-      ['SQL', 'Database design', 'Indexes'],
-      ['Authentication', 'Authorization', 'Security'],
-      ['Automated tests', 'Caching', 'Background jobs'],
-      ['Deployment', 'Logging', 'System design'],
-    ],
-    projects: [
-      'Build a command-line service.',
-      'Create a REST API with validation.',
-      'Design a relational database for an application.',
-      'Add authentication and role-based authorization.',
-      'Add tests, caching, and reliable error handling.',
-      'Deploy a documented API with logs and health checks.',
-    ],
-  },
-};
+export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({ analysis }) => {
+  const [targetRole, setTargetRole] = useState(
+    analysis?.target_role || 'Senior Software Engineer'
+  );
+  const [customRoleInput, setCustomRoleInput] = useState('');
+  const [selectedPhaseId, setSelectedPhaseId] = useState<number>(2);
 
-const DEFAULT_SKILLS = [
-  ['Role fundamentals', 'Industry terminology', 'Communication'],
-  ['Core tools', 'Practical exercises', 'Problem solving'],
-  ['Intermediate concepts', 'Analytical thinking', 'Best practices'],
-  ['Advanced tools', 'Independent work', 'Quality assurance'],
-  ['Real-world workflows', 'Collaboration', 'Documentation'],
-  ['Portfolio', 'Interview preparation', 'Career planning'],
-];
-
-const DEFAULT_PROJECTS = [
-  'Research the role and write a personal learning plan.',
-  'Complete beginner exercises using the main industry tools.',
-  'Complete a practical assignment relevant to the role.',
-  'Build a larger project demonstrating independent work.',
-  'Create a real-world case study and gather feedback.',
-  'Publish a professional portfolio and prepare for interviews.',
-];
-
-function createRoadmap(role: string): RoadmapMilestone[] {
-  const template = ROADMAP_TEMPLATES[role];
-  const skillGroups = template?.skills ?? DEFAULT_SKILLS;
-  const projects = template?.projects ?? DEFAULT_PROJECTS;
-
-  const phases = [
-    {
-      title: 'Foundation',
-      description: 'Build the fundamentals required for your target role.',
-      duration: 'Weeks 1–2',
-      icon: <GraduationCap className="h-5 w-5" />,
-    },
-    {
-      title: 'Core Skills',
-      description: 'Learn the primary tools, concepts, and workflows.',
-      duration: 'Weeks 3–5',
-      icon: <BookOpen className="h-5 w-5" />,
-    },
-    {
-      title: 'Practical Skills',
-      description: 'Apply your knowledge through guided exercises.',
-      duration: 'Weeks 6–8',
-      icon: <Code2 className="h-5 w-5" />,
-    },
-    {
-      title: 'Portfolio Project',
-      description: 'Build a substantial project that demonstrates your skills.',
-      duration: 'Weeks 9–12',
-      icon: <Rocket className="h-5 w-5" />,
-    },
-    {
-      title: 'Industry Readiness',
-      description: 'Practice real-world workflows and improve your project.',
-      duration: 'Weeks 13–16',
-      icon: <BriefcaseBusiness className="h-5 w-5" />,
-    },
-    {
-      title: 'Job Preparation',
-      description: 'Prepare applications, interviews, and a professional portfolio.',
-      duration: 'Weeks 17–20',
-      icon: <Trophy className="h-5 w-5" />,
-    },
+  const candidateSkills = analysis?.skills || [
+    'Python',
+    'JavaScript',
+    'React',
+    'SQL',
+    'Git',
   ];
 
-  return phases.map((phase, index) => ({
-    // FIX: use string concatenation instead of a template literal here.
-    id:
-      role.toLowerCase().replace(/[^a-z0-9]+/g, '-') +
-      '-' +
-      (index + 1),
-    title: phase.title,
-    description: phase.description,
-    duration: phase.duration,
-    skills: skillGroups[index],
-    tasks: [
-      `Study and practice ${skillGroups[index][0]}.`,
-      `Complete exercises using ${skillGroups[index]
-        .slice(1, 3)
-        .join(' and ')}.`,
-      'Write down what you learned and identify gaps to revisit.',
-    ],
-    project: projects[index],
-    icon: phase.icon,
-    status: 'Not Started',
-  }));
-}
+  // Milestone Stages tailored for role progression
+  const [milestones, setMilestones] = useState<RoadmapMilestone[]>([
+    {
+      id: 1,
+      phase: 'Phase 01',
+      title: 'Foundational Baseline & Code Quality Standards',
+      level: 'Mid-Level Foundation',
+      timeline: 'Month 1–2',
+      salaryBand: '$90,000 – $115,000',
+      description: 'Solidify clean code architecture, automated testing pipelines, and design pattern fundamentals.',
+      targetCompetencies: ['Data Structures & Algorithms', 'Clean Code Architecture', 'Git Workflows', 'Unit & Integration Testing'],
+      capstoneDeliverable: 'Audit an existing codebase, set up strict CI/CD linting, and achieve >85% automated test coverage.',
+      interviewGate: 'Explain trade-offs between array-based vs linked memory layouts in high-throughput loops.',
+      completed: true,
+    },
+    {
+      id: 2,
+      phase: 'Phase 02',
+      title: 'Distributed Storage & Core Framework Toolchains',
+      level: 'Advanced Practitioner',
+      timeline: 'Month 3–4',
+      salaryBand: '$115,000 – $140,000',
+      description: 'Master asynchronous backends, distributed caching, containerization, and database indexing.',
+      targetCompetencies: ['PostgreSQL & Query Optimization', 'Docker Containerization', 'Redis In-Memory Caching', 'FastAPI / Node.js'],
+      capstoneDeliverable: 'Implement a distributed caching layer that decreases database p99 query latency from 250ms to under 20ms.',
+      interviewGate: 'How do you prevent cache stampede during high-concurrency cache eviction cycles?',
+      completed: true,
+    },
+    {
+      id: 3,
+      phase: 'Phase 03',
+      title: 'Scalable Systems Architecture & Cloud Telemetry',
+      level: 'Senior Specialist',
+      timeline: 'Month 5–6',
+      salaryBand: '$145,000 – $175,000',
+      description: 'Design resilient event-driven microservices, message queues, and cloud observability pipelines.',
+      targetCompetencies: ['Kafka / RabbitMQ', 'Kubernetes Orchestration', 'AWS Cloud Infrastructure', 'System Observability (p99 Metrics)'],
+      capstoneDeliverable: 'Architect an event-driven pub/sub ingestion engine handling 50,000 events/second with zero message loss.',
+      interviewGate: 'Compare idempotency strategies in message consumers with at-least-once delivery guarantees.',
+      completed: false,
+    },
+    {
+      id: 4,
+      phase: 'Phase 04',
+      title: 'ATS Resume Keyword Tuning & Metric Storytelling',
+      level: 'High-Demand Senior',
+      timeline: 'Month 7–8',
+      salaryBand: '$170,000 – $200,000',
+      description: 'Align resume bullets with Google XYZ accomplishments and maximize recruiter ATS discovery.',
+      targetCompetencies: ['Google XYZ Accomplishments', 'STAR Behavioral Methodology', 'Technical Whitepaper', 'Open-Source Contributions'],
+      capstoneDeliverable: 'Publish a technical case study on GitHub and tune resume keywords to score 92%+ on enterprise ATS scanners.',
+      interviewGate: 'Describe how you drove technical consensus across conflicting engineering stakeholder groups.',
+      completed: false,
+    },
+    {
+      id: 5,
+      phase: 'Phase 05',
+      title: 'Executive System Design & Final Offer Negotiation',
+      level: 'Staff / Lead Target',
+      timeline: 'Month 9–10',
+      salaryBand: '$195,000 – $250,000+',
+      description: 'Master senior onsite architecture rounds, cross-functional leadership, and equity compensation leverage.',
+      targetCompetencies: ['Complex System Design', 'Cross-Functional Leadership', 'Executive Presence', 'Equity & Total Compensation Strategy'],
+      capstoneDeliverable: 'Complete 3 full-length simulated architectural design boards with STAR method behavioral mastery.',
+      interviewGate: 'Architect a globally distributed key-value store with tunable consistency (PACELC theorem).',
+      completed: false,
+    },
+  ]);
 
-const CareerRoadmapView: React.FC = () => {
-  const [selectedRole, setSelectedRole] = useState('AI Engineer');
-  const [customRole, setCustomRole] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>('phase-1');
-
-  const [roadmaps, setRoadmaps] = useState<
-    Record<string, RoadmapMilestone[]>
-  >({});
-
-  const activeRole =
-    selectedRole === 'Custom Role'
-      ? customRole.trim() || 'Custom Career'
-      : selectedRole;
-
-  const roadmapKey = activeRole.toLowerCase();
-
-  const milestones = useMemo(
-    () => roadmaps[roadmapKey] ?? createRoadmap(activeRole),
-    [roadmaps, roadmapKey, activeRole]
-  );
-
-  const completedCount = milestones.filter(
-    (item) => item.status === 'Completed'
-  ).length;
-
-  const inProgressCount = milestones.filter(
-    (item) => item.status === 'In Progress'
-  ).length;
-
-  const progress =
-    milestones.length > 0
-      ? Math.round((completedCount / milestones.length) * 100)
-      : 0;
-
-  const updateStatus = (
-    milestoneId: string,
-    status: MilestoneStatus
-  ) => {
-    setRoadmaps((previous) => {
-      const current = previous[roadmapKey] ?? createRoadmap(activeRole);
-
-      return {
-        ...previous,
-        [roadmapKey]: current.map((milestone) =>
-          milestone.id === milestoneId
-            ? { ...milestone, status }
-            : milestone
-        ),
-      };
-    });
+  const toggleMilestoneComplete = (id: number) => {
+    setMilestones(prev =>
+      prev.map(m => (m.id === id ? { ...m, completed: !m.completed } : m))
+    );
   };
 
-  const resetRoadmap = () => {
-    setRoadmaps((previous) => ({
-      ...previous,
-      [roadmapKey]: createRoadmap(activeRole),
-    }));
-    setExpandedId('phase-1');
+  const handleSelectRole = (role: string) => {
+    setTargetRole(role);
   };
+
+  const completedCount = milestones.filter(m => m.completed).length;
+  const progressPercent = Math.round((completedCount / milestones.length) * 100);
+  const activeMilestone = milestones.find(m => m.id === selectedPhaseId) || milestones[0];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-900 p-6 text-white shadow-lg sm:p-9">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-          <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-purple-100">
-              <Compass className="h-4 w-4" />
-              CAREER INTELLIGENCE
-            </div>
-
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-              Your Career Roadmap
-            </h1>
-
-            <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base">
-              Turn your career goal into a clear, step-by-step plan.
-              Build practical skills, complete projects, and track your
-              progress toward professional readiness.
-            </p>
+    <div className="space-y-6 max-w-6xl mx-auto selection:bg-blue-600 selection:text-white pb-16">
+      {/* Header Banner */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+            <span>CAREER ROADMAP &amp; COMPETENCY MILESTONES</span>
           </div>
-
-          <div className="flex h-28 w-28 shrink-0 flex-col items-center justify-center self-start rounded-2xl border border-white/20 bg-white/10 lg:self-center">
-            <Target className="mb-2 h-6 w-6 text-purple-300" />
-            <span className="text-2xl font-black">{progress}%</span>
-            <span className="text-xs text-slate-300">Completed</span>
-          </div>
-        </div>
-      </header>
-
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Total milestones</p>
-          <p className="mt-2 text-3xl font-black text-slate-900">
-            {milestones.length}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Across your learning journey
+          <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight">
+            Target Career Progression: <span className="text-blue-600">{targetRole}</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
+            A clear, phased milestone blueprint comparing your verified resume skills against market requirements for promotion and senior hiring.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">Completed phases</p>
-          <p className="mt-2 text-3xl font-black text-emerald-600">
-            {completedCount}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Keep building consistent progress
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-sm text-slate-500">In progress</p>
-          <p className="mt-2 text-3xl font-black text-indigo-600">
-            {inProgressCount}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Phases you are currently working on
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <label
-              htmlFor="career-role"
-              className="mb-2 block text-sm font-bold text-slate-800"
-            >
-              Choose your target career
-            </label>
-
-            <select
-              id="career-role"
-              value={selectedRole}
-              onChange={(event) => {
-                setSelectedRole(event.target.value);
-                setExpandedId('phase-1');
-              }}
-              className="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-            >
-              {CAREER_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
+        {/* Overall Completion Metric Card */}
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shrink-0 min-w-[220px]">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1.5">
+            <span>Roadmap Progress</span>
+            <span className="text-blue-600 font-extrabold">{progressPercent}%</span>
           </div>
-
-          <button
-            type="button"
-            onClick={resetRoadmap}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Reset progress
-          </button>
-        </div>
-
-        {selectedRole === 'Custom Role' && (
-          <div className="mt-4">
-            <label
-              htmlFor="custom-role"
-              className="mb-2 block text-sm font-bold text-slate-800"
-            >
-              Enter any career role
-            </label>
-
-            <input
-              id="custom-role"
-              value={customRole}
-              onChange={(event) => {
-                setCustomRole(event.target.value);
-                setExpandedId('phase-1');
-              }}
-              placeholder="e.g. Robotics Engineer, Teacher, Accountant"
-              className="w-full rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-            />
-          </div>
-        )}
-
-        <div className="mt-5 rounded-xl bg-slate-50 p-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-sm font-bold text-slate-700">
-              Overall roadmap progress
-            </span>
-            <span className="text-sm font-black text-purple-700">
-              {completedCount}/{milestones.length} phases
-            </span>
-          </div>
-
-          <div
-            className="h-3 overflow-hidden rounded-full bg-slate-200"
-            role="progressbar"
-            aria-label="Career roadmap completion"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progress}
-          >
+          <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-500"
-              style={{ width: `${progress}%` }}
+              className="bg-blue-600 h-full rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
+          <div className="text-[11px] text-slate-500 mt-2 flex items-center justify-between">
+            <span>{completedCount} of {milestones.length} Phases Done</span>
+            <span className="text-emerald-600 font-semibold flex items-center gap-1">
+              <Check className="w-3 h-3" /> On Track
+            </span>
+          </div>
         </div>
-      </section>
+      </div>
 
-      <section>
-        <div className="mb-5">
-          <h2 className="text-xl font-black text-slate-900">
-            Your learning journey
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Expand each phase to see its skills, activities, and project.
+      {/* Target Role Selector Tabs */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          <Target className="w-4 h-4 text-blue-600" />
+          <span>Select or Change Target Career Destination:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ROLE_PRESETS.map(role => (
+            <button
+              key={role}
+              onClick={() => handleSelectRole(role)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                targetRole === role
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              <span>{role}</span>
+              {targetRole === role && <Check className="w-3 h-3" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Verified Skills vs Gaps Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Verified Resume Skills */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Verified In Your Resume ({candidateSkills.length})</span>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Active Strengths
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Competencies successfully detected from your uploaded profile that count toward your baseline.
           </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {candidateSkills.map(skill => (
+              <span
+                key={skill}
+                className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className="space-y-4">
-          {milestones.map((milestone, index) => {
-            const isExpanded =
-              expandedId === `phase-${index + 1}`;
+        {/* Milestone Gaps & Focus */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-purple-600" />
+              <span>Priority Skills for {targetRole}</span>
+            </div>
+            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+              High Market Demand
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Recommended tools and systems architecture required to reach top-percentile compensation.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {['Docker', 'PostgreSQL Optimization', 'Redis Caching', 'Kafka', 'Kubernetes', 'AWS', 'System Design'].map(skill => (
+              <span
+                key={skill}
+                className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-semibold"
+              >
+                + {skill}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            const isCompleted = milestone.status === 'Completed';
+      {/* Sequential Phase Breakdown: Clear 5-Step Cards */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black text-slate-950 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-600" />
+            <span>Step-by-Step Career Progression Phases</span>
+          </h2>
+          <span className="text-xs text-slate-400">Click any milestone card to expand details</span>
+        </div>
 
+        <div className="space-y-3">
+          {milestones.map((milestone) => {
+            const isSelected = milestone.id === selectedPhaseId;
             return (
-              <article
+              <div
                 key={milestone.id}
-                className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${
-                  isCompleted
-                    ? 'border-emerald-200'
-                    : 'border-slate-200'
+                className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-xs ${
+                  isSelected
+                    ? 'border-blue-500 ring-2 ring-blue-500/10'
+                    : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedId(
-                      isExpanded ? null : `phase-${index + 1}`
-                    )
-                  }
-                  aria-expanded={isExpanded}
-                  className="flex w-full items-center gap-4 p-5 text-left sm:p-6"
+                {/* Milestone Summary Header Row */}
+                <div
+                  onClick={() => setSelectedPhaseId(milestone.id)}
+                  className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/50 transition"
                 >
-                  <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                      isCompleted
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : milestone.status === 'In Progress'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <CheckCircle2 className="h-6 w-6" />
-                    ) : (
-                      milestone.icon
-                    )}
+                  <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleMilestoneComplete(milestone.id);
+                      }}
+                      className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 transition ${
+                        milestone.completed
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'bg-white border-slate-300 text-slate-300 hover:border-blue-500 hover:text-blue-500'
+                      }`}
+                      title={milestone.completed ? 'Mark as incomplete' : 'Mark as completed'}
+                    >
+                      {milestone.completed ? <Check className="w-4 h-4 stroke-[3]" /> : <Circle className="w-4 h-4" />}
+                    </button>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          {milestone.phase}
+                        </span>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs font-semibold text-slate-500">{milestone.level}</span>
+                        {milestone.completed && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            Completed
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 mt-1 truncate">
+                        {milestone.title}
+                      </h3>
+                    </div>
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold uppercase tracking-wide text-purple-600">
-                        Phase {index + 1}
-                      </span>
-
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        <Clock className="mr-1 inline h-3 w-3" />
-                        {milestone.duration}
-                      </span>
+                  <div className="flex items-center gap-4 shrink-0 sm:pl-4 sm:border-l sm:border-slate-100">
+                    <div className="text-left sm:text-right">
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1 sm:justify-end">
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{milestone.salaryBand}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1 sm:justify-end">
+                        <Calendar className="w-3 h-3" />
+                        <span>{milestone.timeline}</span>
+                      </div>
                     </div>
 
-                    <h3 className="mt-1 text-base font-black text-slate-900 sm:text-lg">
-                      {milestone.title}
-                    </h3>
+                    <ChevronRight
+                      className={`w-5 h-5 text-slate-400 transition-transform ${
+                        isSelected ? 'rotate-90 text-blue-600' : ''
+                      }`}
+                    />
+                  </div>
+                </div>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                {/* Expanded Details Section */}
+                {isSelected && (
+                  <div className="p-5 pt-0 bg-slate-50/60 border-t border-slate-100 space-y-4">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed pt-3">
                       {milestone.description}
-              
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Required Competencies */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
+                        <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Code className="w-4 h-4 text-blue-600" />
+                          <span>Core Competencies in this Phase:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {milestone.targetCompetencies.map(comp => {
+                            const isPossessed = candidateSkills.some(s => s.toLowerCase() === comp.toLowerCase());
+                            return (
+                              <span
+                                key={comp}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                                  isPossessed
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-blue-50 text-blue-800 border-blue-200'
+                                }`}
+                              >
+                                {isPossessed ? '✓ ' : ''}{comp}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Capstone Deliverable */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1.5">
+                        <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Award className="w-4 h-4 text-purple-600" />
+                          <span>Actionable Capstone Project:</span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {milestone.capstoneDeliverable}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Interview Gate Question */}
+                    <div className="bg-purple-50/70 p-4 rounded-xl border border-purple-200 space-y-1">
+                      <div className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                        <BookOpen className="w-4 h-4 text-purple-600" />
+                        <span>ATS Interview Gate Benchmark:</span>
+                      </div>
+                      <p className="text-xs text-purple-950 font-medium italic">
+                        &quot;{milestone.interviewGate}&quot;
+                      </p>
+                    </div>
+
+                    {/* Toggle Completion Button */}
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => toggleMilestoneComplete(milestone.id)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                          milestone.completed
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                        }`}
+                      >
+                        {milestone.completed ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Mark as In Progress</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Mark Phase Completed</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};

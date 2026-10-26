@@ -68,7 +68,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
   // Helper to extract email
   const parseCandidateEmail = (text: string): string => {
     const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return emailMatch ? emailMatch[0].toLowerCase() : '';
+    return emailMatch ? emailMatch[0] : 'candidate@applied.net';
   };
 
   // Helper to extract phone
@@ -77,13 +77,38 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     return phoneMatch ? phoneMatch[0] : '';
   };
 
-  // Handle multi-file selection
+  // Helper to generate a unique candidate fingerprint for deduplication
+  const getCandidateSignature = (name: string, email: string, phone: string, text: string): string => {
+    const normEmail = (email || '').toLowerCase().trim();
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+    const normName = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const textFingerprint = text.slice(0, 120).replace(/\s+/g, ' ').trim().toLowerCase();
+
+    if (normEmail && !normEmail.includes('applied.net') && !normEmail.includes('example.com')) {
+      return `email:${normEmail}`;
+    }
+    if (cleanPhone && cleanPhone.length >= 7) {
+      return `phone:${cleanPhone}`;
+    }
+    if (normName && normName.length >= 3) {
+      return `name:${normName}_${textFingerprint}`;
+    }
+    return `content:${textFingerprint}`;
+  };
+
+  // Handle multi-file selection with instant deduplication
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setErrorMessage(null);
     const newStaged: StagedResume[] = [];
+    let duplicateCount = 0;
+
+    // Track existing staged keys
+    const seenSignatures = new Set<string>(
+      stagedFiles.map(f => getCandidateSignature(f.name, f.email, f.phone, f.text))
+    );
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -92,7 +117,14 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         const name = parseCandidateName(textContent, file.name);
         const email = parseCandidateEmail(textContent);
         const phone = parseCandidatePhone(textContent);
+        const signature = getCandidateSignature(name, email, phone, textContent);
 
+        if (seenSignatures.has(signature)) {
+          duplicateCount++;
+          continue;
+        }
+
+        seenSignatures.add(signature);
         newStaged.push({
           id: `staged_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
           filename: file.name,
@@ -109,8 +141,15 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
 
     if (newStaged.length > 0) {
       setStagedFiles(prev => [...prev, ...newStaged]);
-      setSuccessMessage(`Loaded ${newStaged.length} resume(s). Ready for bulk screening.`);
-      setTimeout(() => setSuccessMessage(null), 3500);
+      if (duplicateCount > 0) {
+        setSuccessMessage(`Loaded ${newStaged.length} unique resume(s). Filtered out ${duplicateCount} duplicate submission(s).`);
+      } else {
+        setSuccessMessage(`Loaded ${newStaged.length} resume(s). Ready for bulk screening.`);
+      }
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } else if (duplicateCount > 0) {
+      setErrorMessage(`All ${duplicateCount} selected file(s) are identical duplicates of already uploaded resumes. Only 1 unique profile is retained.`);
+      setTimeout(() => setErrorMessage(null), 5000);
     }
 
     // Reset input so same files can be re-selected if desired
@@ -150,7 +189,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     setStagedFiles([]);
   };
 
-  // Parse pasted batch resumes (separated by `---` or double line breaks)
+  // Parse pasted batch resumes (separated by `---` or double line breaks) with deduplication
   const handleParsePastedBatch = () => {
     if (!pasteBatchText.trim()) {
       setErrorMessage('Please paste at least one candidate resume into the box.');
@@ -167,12 +206,26 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       return;
     }
 
-    const newStaged: StagedResume[] = rawBlocks.map((block, idx) => {
+    const seenSignatures = new Set<string>(
+      stagedFiles.map(f => getCandidateSignature(f.name, f.email, f.phone, f.text))
+    );
+
+    const newStaged: StagedResume[] = [];
+    let dupCount = 0;
+
+    rawBlocks.forEach((block, idx) => {
       const name = parseCandidateName(block, `Candidate ${stagedFiles.length + idx + 1}`);
       const email = parseCandidateEmail(block);
       const phone = parseCandidatePhone(block);
+      const sig = getCandidateSignature(name, email, phone, block);
 
-      return {
+      if (seenSignatures.has(sig)) {
+        dupCount++;
+        return;
+      }
+      seenSignatures.add(sig);
+
+      newStaged.push({
         id: `pasted_${Date.now()}_${idx}`,
         filename: `${name.replace(/\s+/g, '_')}_Resume.txt`,
         size: block.length,
@@ -180,31 +233,23 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         email,
         phone,
         text: block,
-      };
+      });
     });
 
-    setStagedFiles(prev => [...prev, ...newStaged]);
-    setPasteBatchText('');
-    setActiveTab('upload');
-    setSuccessMessage(`Parsed ${newStaged.length} candidate resume(s) from pasted text!`);
-    setTimeout(() => setSuccessMessage(null), 3500);
-  };
-
-  const deduplicateResumes = (items: StagedResume[]) => {
-    const seenEmails = new Set<string>();
-    const seenText = new Set<string>();
-    const unique: StagedResume[] = [];
-    let removed = 0;
-    for (const item of items) {
-      const email = item.email.trim().toLowerCase();
-      const normalizedText = item.text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      const fingerprint = normalizedText.length ? normalizedText : item.filename.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      if ((email && seenEmails.has(email)) || (fingerprint && seenText.has(fingerprint))) { removed++; continue; }
-      if (email) seenEmails.add(email);
-      if (fingerprint) seenText.add(fingerprint);
-      unique.push(item);
+    if (newStaged.length > 0) {
+      setStagedFiles(prev => [...prev, ...newStaged]);
+      setPasteBatchText('');
+      setActiveTab('upload');
+      if (dupCount > 0) {
+        setSuccessMessage(`Parsed ${newStaged.length} unique resume(s). Omitted ${dupCount} duplicate(s).`);
+      } else {
+        setSuccessMessage(`Parsed ${newStaged.length} candidate resume(s) from pasted text!`);
+      }
+      setTimeout(() => setSuccessMessage(null), 3500);
+    } else {
+      setErrorMessage(`All pasted blocks were identical duplicates of existing candidates.`);
+      setTimeout(() => setErrorMessage(null), 4000);
     }
-    return { unique, removed };
   };
 
   // Run bulk screening against the campaign job description
@@ -214,23 +259,49 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       return;
     }
 
-    const { unique: uniqueResumes, removed } = deduplicateResumes(stagedFiles);
-    if (uniqueResumes.length === 0) {
-      setErrorMessage('All selected resumes were duplicates. Add at least one unique resume to continue.');
-      return;
-    }
     const jd = campaign?.job_description || `Software Engineer requiring strong technical fundamentals, system design, modern frameworks, databases, and problem solving.`;
 
     setLoading(true);
     setErrorMessage(null);
 
-    const payloadResumes = uniqueResumes.map(f => ({
+    const payloadResumes = stagedFiles.map(f => ({
       name: f.name,
       filename: f.filename,
       email: f.email,
       phone: f.phone,
       text: f.text,
     }));
+
+    // Helper to merge incoming candidates without duplicate profiles
+    const mergeUniqueCandidates = (incoming: Candidate[]): Candidate[] => {
+      const mergedMap = new Map<string, Candidate>();
+
+      for (const c of candidates) {
+        const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
+          ? `email:${c.email.toLowerCase()}`
+          : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
+        mergedMap.set(key, c);
+      }
+
+      for (const c of incoming) {
+        const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
+          ? `email:${c.email.toLowerCase()}`
+          : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
+        const existing = mergedMap.get(key);
+        if (existing) {
+          mergedMap.set(key, {
+            ...c,
+            id: existing.id,
+            status: (existing.status === 'Shortlisted' || existing.status === 'Assessed') ? existing.status : c.status,
+            assessment_status: existing.assessment_status !== 'Not Sent' ? existing.assessment_status : c.assessment_status,
+          });
+        } else {
+          mergedMap.set(key, c);
+        }
+      }
+
+      return Array.from(mergedMap.values()).sort((a, b) => b.role_match - a.role_match);
+    };
 
     try {
       const res = await fetch('/api/recruiter/screen', {
@@ -245,10 +316,11 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const screenedList: Candidate[] = await res.json();
-        onScreenComplete(screenedList);
+        const merged = mergeUniqueCandidates(screenedList);
+        onScreenComplete(merged);
         setStagedFiles([]);
         setLoading(false);
-        setSuccessMessage(`Screened ${screenedList.length} unique candidate(s).${removed ? ` Removed ${removed} duplicate resume(s).` : ''}`);
+        setSuccessMessage(`Screened ${screenedList.length} unique candidate(s). Total active roster: ${merged.length}.`);
         setTimeout(() => setSuccessMessage(null), 3500);
         return;
       }
@@ -258,10 +330,33 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
 
     // Client fallback with strict regex catalog
     const fallbackList = screenBatchCandidatesClientSide(jd, payloadResumes);
-    onScreenComplete(fallbackList);
+    const merged = mergeUniqueCandidates(fallbackList);
+    onScreenComplete(merged);
     setStagedFiles([]);
     setLoading(false);
-    setSuccessMessage(`Screened ${fallbackList.length} unique candidate(s).${removed ? ` Removed ${removed} duplicate resume(s).` : ''}`);
+    setSuccessMessage(`Screened ${fallbackList.length} unique candidate(s). Total active roster: ${merged.length}.`);
+    setTimeout(() => setSuccessMessage(null), 3500);
+  };
+
+  const handleDeduplicateRoster = () => {
+    const seen = new Set<string>();
+    const unique: Candidate[] = [];
+    for (const c of candidates) {
+      const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
+        ? `email:${c.email.toLowerCase()}`
+        : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(c);
+      }
+    }
+    const removed = candidates.length - unique.length;
+    onScreenComplete(unique);
+    if (removed > 0) {
+      setSuccessMessage(`Cleaned roster: removed ${removed} duplicate entries. ${unique.length} unique candidate(s) retained.`);
+    } else {
+      setSuccessMessage(`Roster verified: all ${unique.length} candidate(s) are unique with zero duplicates.`);
+    }
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
@@ -537,13 +632,32 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
             <div className="text-xs text-slate-400">Sorted by Requisition Semantic Fit</div>
           </div>
 
-          <div className="w-full sm:w-64">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {candidates.length > 0 && (
+              <>
+                <button
+                  onClick={handleDeduplicateRoster}
+                  title="Remove duplicate submissions and keep only unique candidate profiles"
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-purple-300 bg-white hover:bg-purple-50 text-slate-700 font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <Filter className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Deduplicate</span>
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Export CSV</span>
+                </button>
+              </>
+            )}
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Filter by name, email, or skill..."
-              className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              className="w-full sm:w-56 px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
             />
           </div>
         </div>

@@ -46,6 +46,61 @@ export const App: React.FC = () => {
   const [workspace, setWorkspace] = useState<'Job Seeker Workspace' | 'Recruiter Workspace'>('Job Seeker Workspace');
   const [activeTool, setActiveTool] = useState('Dashboard');
 
+  // Navigation History Stack for Browser-style Back & Forward
+  const [navHistory, setNavHistory] = useState<Array<{ workspace: 'Job Seeker Workspace' | 'Recruiter Workspace'; tool: string }>>([
+    { workspace: 'Job Seeker Workspace', tool: 'Dashboard' }
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const navigateTo = (newWorkspace: 'Job Seeker Workspace' | 'Recruiter Workspace', newTool: string) => {
+    setWorkspace(newWorkspace);
+    setActiveTool(newTool);
+    setNavHistory(prev => {
+      const trimmed = prev.slice(0, historyIndex + 1);
+      const last = trimmed[trimmed.length - 1];
+      if (last && last.workspace === newWorkspace && last.tool === newTool) {
+        return trimmed;
+      }
+      return [...trimmed, { workspace: newWorkspace, tool: newTool }];
+    });
+    setHistoryIndex(prev => prev + 1);
+  };
+
+  const handleSelectTool = (tool: string) => {
+    navigateTo(workspace, tool);
+  };
+
+  const handleSelectWorkspace = (ws: 'Job Seeker Workspace' | 'Recruiter Workspace') => {
+    navigateTo(ws, ws === 'Job Seeker Workspace' ? 'Dashboard' : 'Recruiter Dashboard');
+  };
+
+  const canGoBack = historyIndex > 0;
+  const canGoForward = historyIndex < navHistory.length - 1;
+
+  const handleGoBack = () => {
+    if (canGoBack) {
+      const targetIndex = historyIndex - 1;
+      const target = navHistory[targetIndex];
+      if (target) {
+        setHistoryIndex(targetIndex);
+        setWorkspace(target.workspace);
+        setActiveTool(target.tool);
+      }
+    }
+  };
+
+  const handleGoForward = () => {
+    if (canGoForward) {
+      const targetIndex = historyIndex + 1;
+      const target = navHistory[targetIndex];
+      if (target) {
+        setHistoryIndex(targetIndex);
+        setWorkspace(target.workspace);
+        setActiveTool(target.tool);
+      }
+    }
+  };
+
   // Shared Data States with LocalStorage Persistence
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(() => {
     try {
@@ -202,7 +257,7 @@ export const App: React.FC = () => {
           return (
             <DashboardView
               analysis={analysis}
-              onNavigate={setActiveTool}
+              onNavigate={handleSelectTool}
               onAnalysisComplete={handleSetAnalysis}
               onClearAnalysis={() => handleSetAnalysis(null)}
             />
@@ -219,7 +274,7 @@ export const App: React.FC = () => {
               candidates={candidates}
               onScreenComplete={handleSetCandidates}
               onUpdateCandidate={handleUpdateCandidate}
-              onNavigate={setActiveTool}
+              onNavigate={handleSelectTool}
             />
           );
         case 'Shortlisted Candidates':
@@ -227,10 +282,10 @@ export const App: React.FC = () => {
             <ShortlistedCandidatesView
               campaign={campaign}
               candidates={candidates}
-              onNavigate={setActiveTool}
+              onNavigate={handleSelectTool}
               onDispatchTest={cand => {
                 setCandidateToDispatch(cand);
-                setActiveTool('Assessment Dispatcher');
+                handleSelectTool('Assessment Dispatcher');
               }}
             />
           );
@@ -258,7 +313,7 @@ export const App: React.FC = () => {
             <RecruiterDashboardView
               campaign={campaign}
               candidates={candidates}
-              onNavigate={setActiveTool}
+              onNavigate={handleSelectTool}
               onClearCandidates={() => handleSetCandidates([])}
             />
           );
@@ -273,34 +328,32 @@ export const App: React.FC = () => {
 
       <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar
-        workspace={workspace}
-        onSwitchWorkspace={ws => {
-          setWorkspace(ws);
-          setActiveTool(ws === 'Job Seeker Workspace' ? 'Dashboard' : 'Recruiter Dashboard');
-        }}
-        activeTool={activeTool}
-        username={username}
-        onLogout={handleLogout}
-      />
-
-      <div className="flex-1 flex flex-col lg:flex-row max-w-[1440px] w-full mx-auto">
-        <Sidebar
           workspace={workspace}
-          onSelectWorkspace={ws => {
-            setWorkspace(ws);
-            setActiveTool(ws === 'Job Seeker Workspace' ? 'Dashboard' : 'Recruiter Dashboard');
-          }}
+          onSwitchWorkspace={handleSelectWorkspace}
           activeTool={activeTool}
-          onSelectTool={setActiveTool}
           username={username}
           onLogout={handleLogout}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onGoBack={handleGoBack}
+          onGoForward={handleGoForward}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-w-0">
-          {renderActiveTool()}
-        </main>
+        <div className="flex-1 flex flex-col lg:flex-row max-w-[1440px] w-full mx-auto">
+          <Sidebar
+            workspace={workspace}
+            onSelectWorkspace={handleSelectWorkspace}
+            activeTool={activeTool}
+            onSelectTool={handleSelectTool}
+            username={username}
+            onLogout={handleLogout}
+          />
+
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-w-0">
+            {renderActiveTool()}
+          </main>
+        </div>
       </div>
-    </div>
     </div>
   );
 };

@@ -1,323 +1,173 @@
-
-import React from "react";
+import React from 'react';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   FileText,
-  ClipboardCheck,
-  Users,
+  GraduationCap,
+  Mic,
+  Target,
+  DollarSign,
+  Route,
+  ShieldAlert,
+  PenTool,
+  Bot,
+  Megaphone,
+  UploadCloud,
+  Award,
   Send,
-  Trophy,
-  BriefcaseBusiness,
-  Map,
-  MessageSquare,
-  Settings,
-  ChevronLeft,
+  BarChart3,
+  Users,
+  LogOut,
   ChevronRight,
   Sparkles,
-  X,
-  LogOut,
-} from "lucide-react";
+} from 'lucide-react';
+import { CareerLensLogo } from './CareerLensLogo';
 
 interface SidebarProps {
-  activeItem?: string;
-  onNavigate?: (item: string) => void;
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
-  mobileOpen?: boolean;
-  onCloseMobile?: () => void;
-  userName?: string;
-  userRole?: string;
-  onLogout?: () => void;
+  workspace: 'Job Seeker Workspace' | 'Recruiter Workspace';
+  onSelectWorkspace: (ws: 'Job Seeker Workspace' | 'Recruiter Workspace') => void;
+  activeTool: string;
+  onSelectTool: (tool: string) => void;
+  username: string;
+  onLogout: () => void;
 }
 
-interface NavigationItem {
-  label: string;
-  icon: React.ReactNode;
-  section: string;
-}
-
-const navigationItems: NavigationItem[] = [
-  {
-    label: "Dashboard",
-    icon: <LayoutDashboard size={19} />,
-    section: "WORKSPACE",
-  },
-  {
-    label: "Resume Intelligence",
-    icon: <FileText size={19} />,
-    section: "WORKSPACE",
-  },
-  {
-    label: "Job Matching",
-    icon: <BriefcaseBusiness size={19} />,
-    section: "WORKSPACE",
-  },
-  {
-    label: "Career Roadmap",
-    icon: <Map size={19} />,
-    section: "WORKSPACE",
-  },
-  {
-    label: "Career Assistant",
-    icon: <MessageSquare size={19} />,
-    section: "WORKSPACE",
-  },
-  {
-    label: "Assessment Dispatcher",
-    icon: <Send size={19} />,
-    section: "RECRUITMENT",
-  },
-  {
-    label: "Assessment Results",
-    icon: <Trophy size={19} />,
-    section: "RECRUITMENT",
-  },
-  {
-    label: "Candidate Screening",
-    icon: <Users size={19} />,
-    section: "RECRUITMENT",
-  },
-  {
-    label: "Assessments",
-    icon: <ClipboardCheck size={19} />,
-    section: "RECRUITMENT",
-  },
-  {
-    label: "Settings",
-    icon: <Settings size={19} />,
-    section: "PREFERENCES",
-  },
-];
-
-const Sidebar: React.FC<SidebarProps> = ({
-  activeItem = "Dashboard",
-  onNavigate,
-  collapsed = false,
-  onToggleCollapse,
-  mobileOpen = false,
-  onCloseMobile,
-  userName = "CareerLens User",
-  userRole = "Career Intelligence",
+export const Sidebar: React.FC<SidebarProps> = ({
+  workspace,
+  onSelectWorkspace,
+  activeTool,
+  onSelectTool,
+  username,
   onLogout,
 }) => {
-  const sections = Array.from(
-    new Set(navigationItems.map((item) => item.section))
-  );
+  const isSeeker = workspace === 'Job Seeker Workspace';
 
-  const handleNavigate = (label: string) => {
-    onNavigate?.(label);
-    onCloseMobile?.();
-  };
+  const seekerTools = [
+    { name: 'Dashboard', icon: LayoutDashboard },
+    { name: 'Resume Intelligence', icon: FileText },
+    { name: 'Pre-Interview Assessment', icon: GraduationCap },
+    { name: 'Mock Interview', icon: Mic },
+    { name: 'Job Match', icon: Target },
+    { name: 'Salary Estimation', icon: DollarSign },
+    { name: 'Career Roadmap', icon: Route },
+    { name: 'Job Detection', icon: ShieldAlert },
+    { name: 'Resume Builder', icon: PenTool },
+    { name: 'Career Assistant', icon: Bot },
+  ];
+
+  const recruiterTools = [
+    { name: 'Recruiter Dashboard', icon: LayoutDashboard },
+    { name: 'Hiring Campaign', icon: Megaphone },
+    { name: 'Bulk Resume Screening', icon: UploadCloud },
+    { name: 'Shortlisted Candidates', icon: Award },
+    { name: 'Assessment Dispatcher', icon: Send },
+    { name: 'Assessment Results', icon: BarChart3 },
+    { name: 'Interview Pipeline', icon: Users },
+  ];
+
+  const tools = isSeeker ? seekerTools : recruiterTools;
 
   return (
-    <>
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden"
-        />
-      )}
-
-      <aside
-        className={[
-          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col",
-          "border-r border-slate-200 bg-white text-slate-800",
-          "shadow-sm transition-all duration-300",
-          collapsed ? "w-[84px]" : "w-[272px]",
-          mobileOpen
-            ? "translate-x-0"
-            : "-translate-x-full lg:translate-x-0",
-        ].join(" ")}
-      >
-        {/* Brand */}
-        <div className="flex min-h-[82px] items-center justify-between border-b border-slate-100 px-5">
+    <aside className="w-full lg:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 min-h-full selection:bg-blue-600 selection:text-white">
+      {/* Workspace Context Switcher for mobile screens */}
+      <div className="p-3 border-b border-slate-100 lg:hidden">
+        <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
           <button
-            type="button"
-            onClick={() => handleNavigate("Dashboard")}
-            className="flex min-w-0 items-center gap-3 text-left"
-            aria-label="CareerLens AI home"
+            onClick={() => onSelectWorkspace('Job Seeker Workspace')}
+            className={`py-1.5 px-2 text-xs font-semibold rounded-md transition ${
+              isSeeker ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-600'
+            }`}
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200">
-              <Sparkles size={21} />
-            </div>
-
-            {!collapsed && (
-              <div className="min-w-0">
-                <h1 className="truncate text-lg font-extrabold tracking-tight text-slate-900">
-                  CareerLens
-                  <span className="text-blue-600"> AI</span>
-                </h1>
-                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Career Intelligence
-                </p>
-              </div>
-            )}
+            Candidate
           </button>
-
-          {/* Close on mobile */}
           <button
-            type="button"
-            onClick={onCloseMobile}
-            aria-label="Close sidebar"
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
+            onClick={() => onSelectWorkspace('Recruiter Workspace')}
+            className={`py-1.5 px-2 text-xs font-semibold rounded-md transition ${
+              !isSeeker ? 'bg-white text-purple-700 shadow-xs font-bold' : 'text-slate-600'
+            }`}
           >
-            <X size={19} />
+            Recruiter
           </button>
         </div>
+      </div>
 
-        {/* Workspace label */}
-        {!collapsed && (
-          <div className="px-6 pb-2 pt-6">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Navigation
-            </p>
-          </div>
-        )}
+      {/* Navigation Tools List with subtle framer-motion micro-animations */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="px-3 pt-2 pb-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <span>{isSeeker ? 'WORKSPACE MODULES' : 'RECRUITER MODULES'}</span>
+          <span className="font-mono text-slate-400 text-[10px]">{tools.length}</span>
+        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
-          {sections.map((section) => {
-            const items = navigationItems.filter(
-              (item) => item.section === section
-            );
-
+        <div className="space-y-1.5">
+          {tools.map(tool => {
+            const Icon = tool.icon;
+            const isSelected = activeTool === tool.name;
             return (
-              <div key={section}>
-                {!collapsed && (
-                  <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    {section}
-                  </p>
-                )}
-
-                <div className="space-y-1">
-                  {items.map((item) => {
-                    const active = activeItem === item.label;
-
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        title={collapsed ? item.label : undefined}
-                        onClick={() => handleNavigate(item.label)}
-                        aria-current={active ? "page" : undefined}
-                        className={[
-                          "group relative flex w-full items-center gap-3",
-                          "rounded-xl px-3 py-3 text-left text-sm",
-                          "transition-all duration-200",
-                          collapsed ? "justify-center" : "",
-                          active
-                            ? "bg-blue-50 font-semibold text-blue-700"
-                            : "font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-                        ].join(" ")}
-                      >
-                        {active && (
-                          <span className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-blue-600" />
-                        )}
-
-                        <span
-                          className={[
-                            "shrink-0 transition-colors",
-                            active
-                              ? "text-blue-600"
-                              : "text-slate-400 group-hover:text-slate-700",
-                          ].join(" ")}
-                        >
-                          {item.icon}
-                        </span>
-
-                        {!collapsed && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </button>
-                    );
-                  })}
+              <motion.button
+                key={tool.name}
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => onSelectTool(tool.name)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition relative group ${
+                  isSelected
+                    ? isSeeker
+                      ? 'bg-blue-50/90 text-blue-800 border border-blue-300 font-bold shadow-xs'
+                      : 'bg-purple-50/90 text-purple-800 border border-purple-300 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80 border border-slate-200/50 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? isSeeker
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-purple-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                  </div>
+                  <span className="truncate">{tool.name}</span>
                 </div>
-              </div>
+                
+                <ChevronRight
+                  className={`w-3.5 h-3.5 transition-transform ${
+                    isSelected
+                      ? isSeeker
+                        ? 'text-blue-600 translate-x-0.5'
+                        : 'text-purple-600 translate-x-0.5'
+                      : 'text-slate-300 group-hover:text-slate-400'
+                  }`}
+                />
+              </motion.button>
             );
           })}
-        </nav>
-
-        {/* AI status */}
-        {!collapsed && (
-          <div className="mx-4 mb-4 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-xs font-bold text-slate-800">
-                CareerLens AI
-              </span>
-            </div>
-
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Your career intelligence workspace is ready.
-            </p>
-          </div>
-        )}
-
-        {/* User profile */}
-        <div className="border-t border-slate-200 p-3">
-          <div
-            className={[
-              "flex items-center gap-3 rounded-xl p-2",
-              collapsed ? "justify-center" : "",
-            ].join(" ")}
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
-              {userName.trim().charAt(0).toUpperCase() || "U"}
-            </div>
-
-            {!collapsed && (
-              <>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-800">
-                    {userName}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
-                    {userRole}
-                  </p>
-                </div>
-
-                {onLogout && (
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    title="Log out"
-                    aria-label="Log out"
-                    className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                  >
-                    <LogOut size={17} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Collapse button */}
-          {onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="mt-2 hidden w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 lg:flex"
-            >
-              {collapsed ? (
-                <ChevronRight size={16} />
-              ) : (
-                <>
-                  <ChevronLeft size={16} />
-                  Collapse sidebar
-                </>
-              )}
-            </button>
-          )}
         </div>
-      </aside>
-    </>
+      </div>
+
+      {/* Bottom Brand Card with App Logo Emblem & Status */}
+      <div className="p-3 border-t border-slate-100 bg-slate-50/70">
+        <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <CareerLensLogo size="xs" />
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-900 truncate">{username}</div>
+              <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Career Lens</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 };
-
-export default Sidebar;

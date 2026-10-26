@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogOut, ChevronRight, HelpCircle } from 'lucide-react';
+import { LogOut, ChevronRight, ArrowLeft, ArrowRight } from 'lucide-react';
 import { CareerLensLogo } from './CareerLensLogo';
 
 interface NavbarProps {
@@ -8,6 +8,10 @@ interface NavbarProps {
   activeTool: string;
   username: string;
   onLogout: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,17 +20,41 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTool,
   username,
   onLogout,
+  canGoBack = false,
+  canGoForward = false,
+  onGoBack,
+  onGoForward,
 }) => {
   const isSeeker = workspace === 'Job Seeker Workspace';
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 py-3 shadow-xs">
       <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-6">
-        {/* Zone 1: Official Emblem Brand Wordmark */}
-        <div className="flex items-center gap-4 shrink-0">
+        {/* Zone 1: Official Emblem Brand Wordmark & Navigation History Controls */}
+        <div className="flex items-center gap-3 shrink-0">
           <a href="/" className="flex items-center font-bold text-slate-900 text-sm tracking-tight whitespace-nowrap">
             <CareerLensLogo size="sm" showText={true} />
           </a>
+
+          {/* Browser-style Back & Forward Navigation Controls */}
+          <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/90 ml-1">
+            <button
+              onClick={onGoBack}
+              disabled={!canGoBack}
+              title="Navigate Back"
+              className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onGoForward}
+              disabled={!canGoForward}
+              title="Navigate Forward"
+              className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 pl-3 border-l border-slate-200">
             <span className={isSeeker ? 'text-blue-600 font-semibold' : 'text-purple-600 font-semibold'}>
