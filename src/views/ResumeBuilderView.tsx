@@ -336,89 +336,218 @@ ${certifications}`;
 
   /**
    * Print Isolation Helper:
-   * Generates an isolated hidden iframe containing strictly the resume document HTML
-   * and stylesheets, guaranteeing that neither the application navbar, sidebars,
-   * nor controls can ever leak into the printed output.
+   * Prints only the resume in a dedicated iframe. The iframe waits for its
+   * stylesheets, fonts, and images before opening the native print dialog.
+   * The original app DOM and its styling are never modified.
    */
-  const printResumeOnly = () => {
-    const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
-    if (!element) return;
+  const printResumeOnly = async () => {
+    const element =
+      resumeDocumentRef.current ||
+      document.getElementById('resume-preview-document');
 
-    const existingIframe = document.getElementById('resume-isolated-print-frame');
-    if (existingIframe) {
-      existingIframe.remove();
-    }
-
-    const iframe = document.createElement('iframe');
-    iframe.id = 'resume-isolated-print-frame';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
+    if (!element) {
+      alert('Resume preview is not ready yet. Please wait a moment and try again.');
       return;
     }
 
-    const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map(node => node.outerHTML)
-      .join('\n');
+    // Remove a stale print frame left behind by a previous interrupted print.
+    document.getElementById('resume-isolated-print-frame')?.remove();
 
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>${(name.trim() || 'Resume').replace(/\s+/g, '_')}_Resume</title>
-          ${styleTags}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 0;
-            }
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #0f172a !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            #print-container {
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              box-shadow: none !important;
-              border: none !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="print-container">
-            ${element.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-    doc.close();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'resume-isolated-print-frame';
+    iframe.title = 'Resume print preview';
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      left: '0',
+      bottom: '0',
+      width: '1px',
+      height: '1px',
+      border: '0',
+      opacity: '0',
+      pointerEvents: 'none',
+    });
+    document.body.appendChild(iframe);
 
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.warn('Isolated print failed:', e);
-      } finally {
-        setTimeout(() => iframe.remove(), 2000);
+    const printWindow = iframe.contentWindow;
+    const printDocument = iframe.contentDocument;
+
+    if (!printWindow || !printDocument) {
+      iframe.remove();
+      alert('Print preview could not be opened. Please try again.');
+      return;
+    }
+
+    let cleanupTimer: number | undefined;
+    const cleanup = () => {
+      if (cleanupTimer !== undefined) window.clearTimeout(cleanupTimer);
+      if (iframe.isConnected) iframe.remove();
+    };
+
+    try {
+      // Preserve the app's existing CSS so the selected resume template keeps
+      // its colors, columns, typography, and spacing in the isolated print page.
+      const copiedStyles = Array.from(
+        document.querySelectorAll('link[rel="stylesheet"], style')
+      )
+        .map(node => node.outerHTML)
+        .join('\n');
+
+      const safeTitle = `${(name.trim() || 'Resume').replace(/[^a-z0-9_-]+/gi, '_')}_Resume`;
+      const safeBaseUrl = document.baseURI.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+      printDocument.open();
+      printDocument.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <base href="${safeBaseUrl}" />
+            <title>${safeTitle}</title>
+            ${copiedStyles}
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 10mm;
+              }
+
+              html,
+              body {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                background: #ffffff !important;
+                color: #0f172a;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+
+              body {
+                font-family: Arial, Helvetica, sans-serif;
+              }
+
+              #print-container {
+                display: block !important;
+                width: 100% !important;
+                max-width: none !important;
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                box-sizing: border-box !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+                border: 0 !important;
+              }
+
+              #print-container,
+              #print-container * {
+                animation: none !important;
+                transition: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+
+              #print-container img {
+                max-width: 100%;
+                height: auto;
+              }
+
+              @media print {
+                html,
+                body {
+                  width: auto !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
+
+                #print-container {
+                  break-inside: auto;
+                  page-break-inside: auto;
+                }
+
+                button,
+                input[type="button"],
+                input[type="submit"],
+                .no-print {
+                  display: none !important;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <main id="print-container">${element.innerHTML}</main>
+          </body>
+        </html>
+      `);
+      printDocument.close();
+
+      // Wait for linked stylesheets and document layout. The timeout is a
+      // fallback for browsers that do not fire load for an iframe document.
+      await new Promise<void>(resolve => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(fallbackTimer);
+          resolve();
+        };
+        const fallbackTimer = window.setTimeout(finish, 5000);
+        if (printDocument.readyState === 'complete') {
+          finish();
+        } else {
+          printWindow.addEventListener('load', finish, { once: true });
+        }
+      });
+
+      // Wait for fonts and all images (including uploaded headshots).
+      if (printDocument.fonts?.ready) {
+        await printDocument.fonts.ready;
       }
-    }, 250);
+
+      await Promise.all(
+        Array.from(printDocument.images).map(async img => {
+          if (img.complete) {
+            if (img.naturalWidth > 0 && typeof img.decode === 'function') {
+              await img.decode().catch(() => undefined);
+            }
+            return;
+          }
+
+          await new Promise<void>(resolve => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(timer);
+              resolve();
+            };
+            const timer = window.setTimeout(finish, 3000);
+            img.addEventListener('load', finish, { once: true });
+            img.addEventListener('error', finish, { once: true });
+          });
+        })
+      );
+
+      // Let the browser finish layout and paint before invoking native print.
+      await new Promise<void>(resolve => {
+        printWindow.requestAnimationFrame(() => {
+          printWindow.requestAnimationFrame(() => resolve());
+        });
+      });
+
+      printWindow.addEventListener('afterprint', cleanup, { once: true });
+      cleanupTimer = window.setTimeout(cleanup, 60000);
+      printWindow.focus();
+      printWindow.print();
+    } catch (error) {
+      console.error('Resume print failed:', error);
+      cleanup();
+      alert('Could not open Print View. Please try again or use Download PDF.');
+    }
   };
 
   /**
@@ -492,11 +621,52 @@ ${certifications}`;
         scrollY: 0,
         removeContainer: true,
         onclone: clonedDoc => {
-          const clonedElement = clonedDoc.getElementById('resume-preview-document');
+          // html2canvas currently cannot parse modern CSS color functions such
+          // as oklch(). Sanitize them in the cloned document only, so the live
+          // app and its original styling are not changed.
+          const replaceUnsupportedColors = (value: string) =>
+            value.replace(/\b(?:oklch|oklab|lch|lab)\([^)]*\)/gi, 'rgb(100, 116, 139)');
+
+          clonedDoc.querySelectorAll('style').forEach(styleTag => {
+            styleTag.textContent = replaceUnsupportedColors(styleTag.textContent || '');
+          });
+          clonedDoc.querySelectorAll<HTMLElement>('[style]').forEach(node => {
+            const inlineStyle = node.getAttribute('style');
+            if (inlineStyle) node.setAttribute('style', replaceUnsupportedColors(inlineStyle));
+          });
+
+          // Also sanitize accessible stylesheet declarations (including nested
+          // media/supports rules) because some bundlers expose CSS via CSSOM.
+          const sanitizeRules = (rules: CSSRuleList) => {
+            Array.from(rules).forEach(rule => {
+              const styleRule = rule as CSSStyleRule;
+              if (styleRule.style) {
+                Array.from(styleRule.style).forEach(property => {
+                  const value = styleRule.style.getPropertyValue(property);
+                  if (/\b(?:oklch|oklab|lch|lab)\(/i.test(value)) {
+                    styleRule.style.setProperty(
+                      property,
+                      replaceUnsupportedColors(value),
+                      styleRule.style.getPropertyPriority(property)
+                    );
+                  }
+                });
+              }
+              if ('cssRules' in rule) {
+                try { sanitizeRules((rule as CSSGroupingRule).cssRules); } catch { /* inaccessible stylesheet */ }
+              }
+            });
+          };
+          Array.from(clonedDoc.styleSheets).forEach(sheet => {
+            try { if (sheet.cssRules) sanitizeRules(sheet.cssRules); } catch { /* cross-origin stylesheet */ }
+          });
+
+          const clonedElement = clonedDoc.getElementById('resume-preview-document')
+            || clonedDoc.body.querySelector('[data-resume-preview]') as HTMLElement | null;
           if (!clonedElement) return;
 
-          // Keep the selected template's classes/colors, but remove viewport-
-          // dependent sizing and effects that can interfere with canvas export.
+          // Keep the selected template's layout, but remove viewport-dependent
+          // sizing and effects that can interfere with canvas export.
           clonedElement.style.width = `${captureWidth}px`;
           clonedElement.style.maxWidth = 'none';
           clonedElement.style.minHeight = '0';
