@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   PenTool,
   Download,
@@ -63,37 +63,83 @@ interface TemplateOption {
   badge: string;
 }
 
-// Sample professional corporate avatar SVG data URL (self-contained, 100% offline)
-const SAMPLE_AVATAR_DATA_URL =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="100%" stop-color="#0f172a"/>
-    </linearGradient>
-    <linearGradient id="skin" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f8d7b8"/>
-      <stop offset="100%" stop-color="#e2b992"/>
-    </linearGradient>
-    <linearGradient id="suit" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#2563eb"/>
-      <stop offset="100%" stop-color="#1d4ed8"/>
-    </linearGradient>
-  </defs>
-  <rect width="200" height="200" fill="url(#bg)"/>
-  <!-- Head & Neck -->
-  <circle cx="100" cy="85" r="38" fill="url(#skin)"/>
-  <!-- Hair -->
-  <path d="M 62 80 C 62 50, 138 50, 138 80 C 138 60, 125 45, 100 45 C 75 45, 62 60, 62 80 Z" fill="#334155"/>
-  <!-- Shoulders / Suit -->
-  <path d="M 40 185 C 40 135, 70 125, 100 125 C 130 125, 160 135, 160 185 Z" fill="url(#suit)"/>
-  <!-- Shirt & Tie -->
-  <polygon points="90,125 110,125 105,155 95,155" fill="#ffffff"/>
-  <polygon points="97,130 103,130 105,170 100,175 95,170" fill="#dc2626"/>
-</svg>
-`);
+// Self-contained, origin-clean 200x200 PNG data URL generator for the default avatar
+// (Guaranteed 100% origin-clean canvas without SVG foreignObject or CORS taint)
+export const generateDefaultAvatarPng = (): string => {
+  if (typeof document === 'undefined') return '';
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+
+    // Dark sleek gradient
+    const bg = ctx.createLinearGradient(0, 0, 200, 200);
+    bg.addColorStop(0, '#0f172a');
+    bg.addColorStop(1, '#1e293b');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 200, 200);
+
+    // Accent halo
+    ctx.beginPath();
+    ctx.arc(100, 85, 46, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+    ctx.fill();
+
+    // Face / skin
+    const skin = ctx.createLinearGradient(80, 50, 120, 120);
+    skin.addColorStop(0, '#f8d7b8');
+    skin.addColorStop(1, '#e2b992');
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.arc(100, 85, 36, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hair
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.arc(100, 75, 38, Math.PI, 0, false);
+    ctx.fill();
+
+    // Suit shoulders
+    const suit = ctx.createLinearGradient(0, 120, 0, 200);
+    suit.addColorStop(0, '#2563eb');
+    suit.addColorStop(1, '#1d4ed8');
+    ctx.fillStyle = suit;
+    ctx.beginPath();
+    ctx.moveTo(35, 200);
+    ctx.bezierCurveTo(45, 135, 75, 125, 100, 125);
+    ctx.bezierCurveTo(125, 125, 155, 135, 165, 200);
+    ctx.closePath();
+    ctx.fill();
+
+    // White collar
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(90, 125);
+    ctx.lineTo(110, 125);
+    ctx.lineTo(105, 155);
+    ctx.lineTo(95, 155);
+    ctx.closePath();
+    ctx.fill();
+
+    // Red tie
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.moveTo(97, 130);
+    ctx.lineTo(103, 130);
+    ctx.lineTo(105, 175);
+    ctx.lineTo(100, 182);
+    ctx.lineTo(95, 175);
+    ctx.closePath();
+    ctx.fill();
+
+    return canvas.toDataURL('image/png');
+  } catch {
+    return '';
+  }
+};
 
 export const ResumeBuilderView: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>('photo-executive');
@@ -101,10 +147,19 @@ export const ResumeBuilderView: React.FC = () => {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Profile Image Upload State
-  const [profileImage, setProfileImage] = useState<string | null>(SAMPLE_AVATAR_DATA_URL);
+  // Profile Image Upload State (Initialized to clean PNG avatar)
+  const [profileImage, setProfileImage] = useState<string | null>(() => {
+    return typeof window !== 'undefined' ? generateDefaultAvatarPng() : null;
+  });
   const [showPhoto, setShowPhoto] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!profileImage) {
+      const avatar = generateDefaultAvatarPng();
+      if (avatar) setProfileImage(avatar);
+    }
+  }, [profileImage]);
 
   // Resume form state
   const [name, setName] = useState('Alex Morgan');
@@ -202,7 +257,7 @@ export const ResumeBuilderView: React.FC = () => {
   };
 
   const handleUseSampleAvatar = () => {
-    setProfileImage(SAMPLE_AVATAR_DATA_URL);
+    setProfileImage(generateDefaultAvatarPng());
     setShowPhoto(true);
   };
 
@@ -279,24 +334,134 @@ ${certifications}`;
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * Print Isolation Helper:
+   * Generates an isolated hidden iframe containing strictly the resume document HTML
+   * and stylesheets, guaranteeing that neither the application navbar, sidebars,
+   * nor controls can ever leak into the printed output.
+   */
+  const printResumeOnly = () => {
+    const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
+    if (!element) return;
+
+    const existingIframe = document.getElementById('resume-isolated-print-frame');
+    if (existingIframe) {
+      existingIframe.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'resume-isolated-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      return;
+    }
+
+    const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(node => node.outerHTML)
+      .join('\n');
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${(name.trim() || 'Resume').replace(/\s+/g, '_')}_Resume</title>
+          ${styleTags}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 0;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #print-container {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="print-container">
+            ${element.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Isolated print failed:', e);
+      } finally {
+        setTimeout(() => iframe.remove(), 2000);
+      }
+    }, 250);
+  };
+
+  /**
+   * High-Resolution PDF Download:
+   * Captures strictly the #resume-preview-document element with html2canvas and compiles
+   * it into a clean, professional vector-crisp PDF document using jsPDF.
+   */
   const handleDownloadPdf = async () => {
-    if (!resumeDocumentRef.current) return;
+    const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
+    if (!element) return;
     setGeneratingPdf(true);
 
     try {
-      const element = resumeDocumentRef.current;
+      if ('fonts' in document) {
+        await document.fonts.ready;
+      }
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
         logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        onclone: (clonedDoc) => {
+          const docEl = clonedDoc.getElementById('resume-preview-document');
+          if (docEl) {
+            docEl.style.boxShadow = 'none';
+            docEl.style.margin = '0 auto';
+            docEl.style.transform = 'none';
+          }
+        },
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
+        compress: true,
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -312,24 +477,26 @@ ${certifications}`;
       pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, totalPdfHeight, undefined, 'FAST');
       heightLeft -= pdfHeight;
 
-      while (heightLeft > 5) {
-        position = position - pdfHeight;
+      while (heightLeft > 4) {
+        position -= pdfHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, totalPdfHeight, undefined, 'FAST');
         heightLeft -= pdfHeight;
       }
 
-      pdf.save(`${name.replace(/\s+/g, '_')}_Resume_${selectedTemplate}.pdf`);
+      const cleanFileName = `${(name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_')}_Resume_${selectedTemplate}.pdf`;
+      pdf.save(cleanFileName);
     } catch (err) {
-      console.warn('HTML2Canvas export fallback:', err);
-      window.print();
+      console.error('Direct PDF rasterization fallback:', err);
+      // Fallback prints ONLY the isolated resume in a hidden iframe (never the app screen)
+      printResumeOnly();
     } finally {
       setGeneratingPdf(false);
     }
   };
 
   const handlePrint = () => {
-    window.print();
+    printResumeOnly();
   };
 
   const skillList = skills
