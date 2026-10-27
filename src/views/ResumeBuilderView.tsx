@@ -422,74 +422,182 @@ ${certifications}`;
   };
 
   /**
-   * High-Resolution PDF Download:
-   * Captures strictly the #resume-preview-document element with html2canvas and compiles
-   * it into a clean, professional vector-crisp PDF document using jsPDF.
+   * Reliable PDF export:
+   * - Waits for web fonts and embedded/profile images to finish loading.
+   * - Captures the selected template at a fixed, predictable document width.
+   * - Splits the rendered image into A4-sized slices so long resumes do not
+   *   overlap, clip, or produce blank pages.
+   * - Keeps the existing resume preview and all template/UI markup unchanged.
    */
   const handleDownloadPdf = async () => {
     const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
-    if (!element) return;
+
+    if (!element) {
+      alert('Resume preview is not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    if (generatingPdf) return;
+
     setGeneratingPdf(true);
 
     try {
-      if ('fonts' in document) {
+      // Ensure fonts are ready before taking the snapshot.
+      if (document.fonts?.ready) {
         await document.fonts.ready;
       }
 
+      // Wait for all images in the preview, including uploaded data-URL photos.
+      const images = Array.from(element.querySelectorAll('img'));
+      await Promise.all(
+        images.map(async img => {
+          if (img.complete && img.naturalWidth > 0) return;
+          if (typeof img.decode === 'function') {
+            try {
+              await img.decode();
+              return;
+            } catch {
+              // Fall through to load/error events below.
+            }
+          }
+          await new Promise<void>(resolve => {
+            const finish = () => resolve();
+            img.addEventListener('load', finish, { once: true });
+            img.addEventListener('error', finish, { once: true });
+            // Avoid waiting indefinitely on a broken or blocked image.
+            window.setTimeout(finish, 2500);
+          });
+        })
+      );
+
+      // Let React/layout/browser painting settle after font and image loading.
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+      const captureWidth = Math.max(element.scrollWidth, element.offsetWidth, 760);
+      const captureHeight = Math.max(element.scrollHeight, element.offsetHeight);
+      if (!captureWidth || !captureHeight) {
+        throw new Error('The resume preview has no measurable content.');
+      }
+
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: Math.max(document.documentElement.clientWidth, captureWidth),
+        windowHeight: Math.max(window.innerHeight, captureHeight),
         scrollX: 0,
         scrollY: 0,
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-        onclone: (clonedDoc) => {
-          const docEl = clonedDoc.getElementById('resume-preview-document');
-          if (docEl) {
-            docEl.style.boxShadow = 'none';
-            docEl.style.margin = '0 auto';
-            docEl.style.transform = 'none';
-          }
+        removeContainer: true,
+        onclone: clonedDoc => {
+          const clonedElement = clonedDoc.getElementById('resume-preview-document');
+          if (!clonedElement) return;
+
+          // Keep the selected template's classes/colors, but remove viewport-
+          // dependent sizing and effects that can interfere with canvas export.
+          clonedElement.style.width = `${captureWidth}px`;
+          clonedElement.style.maxWidth = 'none';
+          clonedElement.style.minHeight = '0';
+          clonedElement.style.height = 'auto';
+          clonedElement.style.margin = '0';
+          clonedElement.style.transform = 'none';
+          clonedElement.style.transition = 'none';
+          clonedElement.style.animation = 'none';
+          clonedElement.style.boxShadow = 'none';
+          clonedElement.style.overflow = 'visible';
+          clonedElement.style.backgroundColor = '#ffffff';
+          clonedElement.style.color = '#0f172a';
+
+          clonedElement.querySelectorAll('*').forEach(node => {
+            const child = node as HTMLElement;
+            child.style.animation = 'none';
+            child.style.transition = 'none';
+          });
         },
       });
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      if (!canvas.width || !canvas.height) {
+        throw new Error('The resume preview could not be rendered to an image.');
+      }
+
+      // Detect a genuinely empty/white capture instead of silently saving it.
+      const sample = document.createElement('canvas');
+      sample.width = 1;
+      sample.height = 1;
+      const sampleCtx = sample.getContext('2d');
+      if (!sampleCtx) throw new Error('Unable to validate the PDF preview.');
+      sampleCtx.drawImage(canvas, 0, 0, 1, 1);
+      // The first pixel may be white due to page margins, so do not use it as
+      // the sole blank-page test. Sample a small grid across the rendered image.
+      const probe = document.createElement('canvas');
+      probe.width = 24;
+      probe.height = 24;
+      const probeCtx = probe.getContext('2d');
+      if (!probeCtx) throw new Error('Unable to validate the PDF preview.');
+      probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
+      const pixels = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+      let nonWhitePixels = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        if (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245) nonWhitePixels++;
+      }
+      // Some templates have white space in the upper-left corner. Check the
+      // full image in a downscaled grid if the first probe is all white.
+      if (nonWhitePixels === 0) {
+        probeCtx.clearRect(0, 0, probe.width, probe.height);
+        probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
+        const fullProbe = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+        for (let i = 0; i < fullProbe.length; i += 4) {
+          if (fullProbe[i] < 245 || fullProbe[i + 1] < 245 || fullProbe[i + 2] < 245) nonWhitePixels++;
+        }
+      }
+      if (nonWhitePixels === 0) {
+        throw new Error('The PDF snapshot appears blank. Please try again after the preview finishes rendering.');
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
         compress: true,
+        putOnlyUsedFonts: true,
       });
+      const pageWidthMm = pdf.internal.pageSize.getWidth();
+      const pageHeightMm = pdf.internal.pageSize.getHeight();
+      const pageHeightPx = Math.floor(canvas.width * (pageHeightMm / pageWidthMm));
+      const totalPages = Math.ceil(canvas.height / pageHeightPx);
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
-      const ratio = canvasWidth / pdfWidth;
-      const totalPdfHeight = canvasHeight / ratio;
+      for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const sourceY = pageIndex * pageHeightPx;
+        const sliceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeight;
+        const pageCtx = pageCanvas.getContext('2d');
+        if (!pageCtx) throw new Error('Unable to prepare a PDF page.');
+        pageCtx.fillStyle = '#ffffff';
+        pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pageCtx.drawImage(
+          canvas,
+          0, sourceY, canvas.width, sliceHeight,
+          0, 0, pageCanvas.width, sliceHeight
+        );
 
-      let heightLeft = totalPdfHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, totalPdfHeight, undefined, 'FAST');
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 4) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, totalPdfHeight, undefined, 'FAST');
-        heightLeft -= pdfHeight;
+        if (pageIndex > 0) pdf.addPage('a4', 'portrait');
+        const pageImage = pageCanvas.toDataURL('image/jpeg', 0.96);
+        const renderedHeightMm = (sliceHeight / canvas.width) * pageWidthMm;
+        pdf.addImage(pageImage, 'JPEG', 0, 0, pageWidthMm, renderedHeightMm, undefined, 'FAST');
+        pageCanvas.width = 1;
+        pageCanvas.height = 1;
       }
 
-      const cleanFileName = `${(name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_')}_Resume_${selectedTemplate}.pdf`;
-      pdf.save(cleanFileName);
+      const cleanName = (name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]+/g, '_');
+      pdf.save(`${cleanName}_Resume_${selectedTemplate}.pdf`);
     } catch (err) {
-      console.error('Direct PDF rasterization fallback:', err);
-      // Fallback prints ONLY the isolated resume in a hidden iframe (never the app screen)
-      printResumeOnly();
+      console.error('Resume PDF export failed:', err);
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      alert(`Could not generate the PDF. ${message} You can use Print View and choose “Save as PDF” as a backup.`);
     } finally {
       setGeneratingPdf(false);
     }
