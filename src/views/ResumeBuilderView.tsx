@@ -540,21 +540,21 @@ ${certifications}`;
               const cloned = clonedNodes[index] as HTMLElement | undefined;
               if (!cloned || !(original instanceof HTMLElement)) return;
               const computed = window.getComputedStyle(original);
-              // Inline the computed visual properties so removing external CSS cannot strip the template.
-              const properties = [
-                'display','position','box-sizing','width','min-width','max-width','height','min-height','max-height',
-                'margin','margin-top','margin-right','margin-bottom','margin-left','padding','padding-top','padding-right','padding-bottom','padding-left',
-                'color','background','background-color','background-image','background-size','background-position','background-repeat',
-                'font-family','font-size','font-weight','font-style','line-height','letter-spacing','text-align','text-transform','text-decoration',
-                'white-space','overflow','overflow-wrap','word-break','vertical-align','border','border-top','border-right','border-bottom','border-left',
-                'border-radius','border-color','border-style','border-width','box-shadow','flex','flex-direction','flex-wrap','flex-grow','flex-shrink',
-                'align-items','align-content','align-self','justify-content','gap','column-gap','row-gap','grid-template-columns','grid-template-rows',
-                'object-fit','object-position','opacity','list-style','page-break-inside','break-inside'
-              ];
-              properties.forEach(property => {
-                const val = computed.getPropertyValue(property);
-                if (val) cloned.style.setProperty(property, replaceColors(val));
-              });
+              // Copy EVERY computed CSS property before removing stylesheet links.
+              // A short allowlist can omit grid-column, grid-row, flex-basis, positioning,
+              // transforms, and other layout rules, causing columns to collapse or flow
+              // into separate vertical sections in the exported PDF.
+              for (let propertyIndex = 0; propertyIndex < computed.length; propertyIndex++) {
+                const property = computed.item(propertyIndex);
+                if (!property) continue;
+                const value = computed.getPropertyValue(property);
+                if (!value) continue;
+                cloned.style.setProperty(
+                  property,
+                  replaceColors(value),
+                  computed.getPropertyPriority(property)
+                );
+              }
               cloned.style.boxShadow = 'none';
               cloned.style.animation = 'none';
               cloned.style.transition = 'none';
@@ -584,11 +584,49 @@ ${certifications}`;
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      const pagePixelHeight = Math.floor(canvas.width * pageH / pageW);
+      // Keep the same pixels-to-mm scale on every page. A fixed-height crop can
+      // cut through a line of text; move each boundary to a nearby low-ink row.
+      const idealPagePixelHeight = Math.floor(canvas.width * pageH / pageW);
+      const imageCtx = canvas.getContext('2d');
+      if (!imageCtx) throw new Error('Unable to inspect the rendered resume.');
+      const pixelData = imageCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+      const findSafeCut = (startY: number, idealCut: number, maxY: number): number => {
+        const searchRadius = Math.min(Math.floor(idealPagePixelHeight * 0.045), 180);
+        const from = Math.max(startY + Math.floor(idealPagePixelHeight * 0.72), idealCut - searchRadius);
+        const to = Math.min(maxY - 1, idealCut + searchRadius);
+        if (to <= from) return Math.min(idealCut, maxY);
+
+        // Score candidate rows by how much dark/text-like content crosses them.
+        // Sample across the width to keep this inexpensive even for high-res captures.
+        const strideX = Math.max(2, Math.floor(canvas.width / 500));
+        const strideY = 2;
+        let bestY = idealCut;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (let row = from; row <= to; row += strideY) {
+          let score = 0;
+          for (let x = 0; x < canvas.width; x += strideX) {
+            const i = (row * canvas.width + x) * 4;
+            const r = pixelData[i], g = pixelData[i + 1], b = pixelData[i + 2], a = pixelData[i + 3];
+            if (a > 0 && r < 170 && g < 170 && b < 170) score++;
+          }
+          // Prefer cuts near the expected page boundary when scores are similar.
+          score += Math.abs(row - idealCut) * 0.025;
+          if (score < bestScore) { bestScore = score; bestY = row; }
+        }
+        return Math.max(startY + 1, Math.min(bestY, maxY));
+      };
+
       let y = 0;
       let page = 0;
       while (y < canvas.height) {
-        const sliceHeight = Math.min(pagePixelHeight, canvas.height - y);
+        const remaining = canvas.height - y;
+        let endY = remaining <= idealPagePixelHeight
+          ? canvas.height
+          : findSafeCut(y, y + idealPagePixelHeight, canvas.height);
+        // Guard against accidental tiny pages if the source is unusually tall/narrow.
+        if (endY - y < idealPagePixelHeight * 0.65) endY = Math.min(canvas.height, y + idealPagePixelHeight);
+        const sliceHeight = endY - y;
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = canvas.width;
         pageCanvas.height = sliceHeight;
@@ -598,13 +636,15 @@ ${certifications}`;
         pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
         pageCtx.drawImage(canvas, 0, y, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
         if (page > 0) pdf.addPage();
-        const pageHeightMm = sliceHeight * pageW / canvas.width;
+        // Never stretch a short final/adjusted slice to full A4 height: preserve text proportions.
+        const pageHeightMm = Math.min(pageH, sliceHeight * pageW / canvas.width);
         pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, pageW, pageHeightMm, undefined, 'FAST');
         pageCanvas.width = 0;
         pageCanvas.height = 0;
-        y += sliceHeight;
+        y = endY;
         page++;
       }
+      pixelData.fill(255);
       const safeName = (name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
       const safeTemplate = String(selectedTemplate).replace(/[^a-zA-Z0-9_-]/g, '_');
       pdf.save(`${safeName}_Resume_${safeTemplate}.pdf`);
