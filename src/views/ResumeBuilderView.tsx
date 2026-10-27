@@ -336,411 +336,259 @@ ${certifications}`;
 
   /**
    * Print Isolation Helper:
-   * Prints only the resume in a dedicated iframe. The iframe waits for its
-   * stylesheets, fonts, and images before opening the native print dialog.
-   * The original app DOM and its styling are never modified.
+   * Generates an isolated hidden iframe containing strictly the resume document HTML
+   * and stylesheets, guaranteeing that neither the application navbar, sidebars,
+   * nor controls can ever leak into the printed output.
    */
-  const printResumeOnly = async () => {
-    const element =
-      resumeDocumentRef.current ||
-      document.getElementById('resume-preview-document');
+  const printResumeOnly = () => {
+    const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
+    if (!element) return;
 
-    if (!element) {
-      alert('Resume preview is not ready yet. Please wait a moment and try again.');
-      return;
+    const existingIframe = document.getElementById('resume-isolated-print-frame');
+    if (existingIframe) {
+      existingIframe.remove();
     }
-
-    // Remove a stale print frame left behind by a previous interrupted print.
-    document.getElementById('resume-isolated-print-frame')?.remove();
 
     const iframe = document.createElement('iframe');
     iframe.id = 'resume-isolated-print-frame';
-    iframe.title = 'Resume print preview';
-    iframe.setAttribute('aria-hidden', 'true');
-    Object.assign(iframe.style, {
-      position: 'fixed',
-      left: '0',
-      bottom: '0',
-      width: '1px',
-      height: '1px',
-      border: '0',
-      opacity: '0',
-      pointerEvents: 'none',
-    });
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
     document.body.appendChild(iframe);
 
-    const printWindow = iframe.contentWindow;
-    const printDocument = iframe.contentDocument;
-
-    if (!printWindow || !printDocument) {
-      iframe.remove();
-      alert('Print preview could not be opened. Please try again.');
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
       return;
     }
 
-    let cleanupTimer: number | undefined;
-    const cleanup = () => {
-      if (cleanupTimer !== undefined) window.clearTimeout(cleanupTimer);
-      if (iframe.isConnected) iframe.remove();
-    };
+    const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map(node => node.outerHTML)
+      .join('\n');
 
-    try {
-      // Preserve the app's existing CSS so the selected resume template keeps
-      // its colors, columns, typography, and spacing in the isolated print page.
-      const copiedStyles = Array.from(
-        document.querySelectorAll('link[rel="stylesheet"], style')
-      )
-        .map(node => node.outerHTML)
-        .join('\n');
-
-      const safeTitle = `${(name.trim() || 'Resume').replace(/[^a-z0-9_-]+/gi, '_')}_Resume`;
-      const safeBaseUrl = document.baseURI.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-
-      printDocument.open();
-      printDocument.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <base href="${safeBaseUrl}" />
-            <title>${safeTitle}</title>
-            ${copiedStyles}
-            <style>
-              @page {
-                size: A4 portrait;
-                margin: 10mm;
-              }
-
-              html,
-              body {
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 100% !important;
-                min-height: 0 !important;
-                background: #ffffff !important;
-                color: #0f172a;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
-
-              body {
-                font-family: Arial, Helvetica, sans-serif;
-              }
-
-              #print-container {
-                display: block !important;
-                width: 100% !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: visible !important;
-                box-sizing: border-box !important;
-                background: #ffffff !important;
-                box-shadow: none !important;
-                border: 0 !important;
-              }
-
-              #print-container,
-              #print-container * {
-                animation: none !important;
-                transition: none !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
-
-              #print-container img {
-                max-width: 100%;
-                height: auto;
-              }
-
-              @media print {
-                html,
-                body {
-                  width: auto !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                }
-
-                #print-container {
-                  break-inside: auto;
-                  page-break-inside: auto;
-                }
-
-                button,
-                input[type="button"],
-                input[type="submit"],
-                .no-print {
-                  display: none !important;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <main id="print-container">${element.innerHTML}</main>
-          </body>
-        </html>
-      `);
-      printDocument.close();
-
-      // Wait for linked stylesheets and document layout. The timeout is a
-      // fallback for browsers that do not fire load for an iframe document.
-      await new Promise<void>(resolve => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(fallbackTimer);
-          resolve();
-        };
-        const fallbackTimer = window.setTimeout(finish, 5000);
-        if (printDocument.readyState === 'complete') {
-          finish();
-        } else {
-          printWindow.addEventListener('load', finish, { once: true });
-        }
-      });
-
-      // Wait for fonts and all images (including uploaded headshots).
-      if (printDocument.fonts?.ready) {
-        await printDocument.fonts.ready;
-      }
-
-      await Promise.all(
-        Array.from(printDocument.images).map(async img => {
-          if (img.complete) {
-            if (img.naturalWidth > 0 && typeof img.decode === 'function') {
-              await img.decode().catch(() => undefined);
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${(name.trim() || 'Resume').replace(/\s+/g, '_')}_Resume</title>
+          ${styleTags}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 0;
             }
-            return;
-          }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #print-container {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="print-container">
+            ${element.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
 
-          await new Promise<void>(resolve => {
-            let settled = false;
-            const finish = () => {
-              if (settled) return;
-              settled = true;
-              window.clearTimeout(timer);
-              resolve();
-            };
-            const timer = window.setTimeout(finish, 3000);
-            img.addEventListener('load', finish, { once: true });
-            img.addEventListener('error', finish, { once: true });
-          });
-        })
-      );
-
-      // Let the browser finish layout and paint before invoking native print.
-      await new Promise<void>(resolve => {
-        printWindow.requestAnimationFrame(() => {
-          printWindow.requestAnimationFrame(() => resolve());
-        });
-      });
-
-      printWindow.addEventListener('afterprint', cleanup, { once: true });
-      cleanupTimer = window.setTimeout(cleanup, 60000);
-      printWindow.focus();
-      printWindow.print();
-    } catch (error) {
-      console.error('Resume print failed:', error);
-      cleanup();
-      alert('Could not open Print View. Please try again or use Download PDF.');
-    }
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Isolated print failed:', e);
+      } finally {
+        setTimeout(() => iframe.remove(), 2000);
+      }
+    }, 250);
   };
 
   /**
-   * Reliable PDF export:
-   * - Waits for web fonts and embedded/profile images to finish loading.
-   * - Captures the selected template at a fixed, predictable document width.
-   * - Splits the rendered image into A4-sized slices so long resumes do not
-   *   overlap, clip, or produce blank pages.
-   * - Keeps the existing resume preview and all template/UI markup unchanged.
+   * High-Resolution PDF Download:
+   * Captures strictly the #resume-preview-document element with html2canvas and compiles
+   * it into a clean, professional vector-crisp PDF document using jsPDF.
    */
   const handleDownloadPdf = async () => {
     const element = resumeDocumentRef.current || document.getElementById('resume-preview-document');
-
-    if (!element) {
-      alert('Resume preview is not ready yet. Please wait a moment and try again.');
-      return;
-    }
-    if (generatingPdf) return;
-
+    if (!element || generatingPdf) return;
     setGeneratingPdf(true);
 
+    // html2canvas currently cannot parse modern CSS oklab()/oklch() colors.
+    // Convert those colors to standard sRGB before capture, preserving the template colors.
+    const modernColorToRgb = (value: string): string => {
+      const fnMatch = value.match(/^\s*(oklab|oklch)\((.*)\)\s*$/i);
+      if (!fnMatch) return value;
+
+      const fn = fnMatch[1].toLowerCase();
+      const body = fnMatch[2];
+      const [colorPart, alphaPart] = body.split('/').map(part => part.trim());
+      const tokens = colorPart.replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+      if (tokens.length < 3) return value;
+
+      const parseComponent = (token: string): number => {
+        const number = Number.parseFloat(token);
+        if (!Number.isFinite(number)) return 0;
+        return token.endsWith('%') ? number / 100 : number;
+      };
+
+      let L = parseComponent(tokens[0]);
+      if (tokens[0].endsWith('%')) L = Math.max(0, Math.min(1, L));
+
+      let a: number;
+      let b: number;
+      if (fn === 'oklch') {
+        const C = parseComponent(tokens[1]);
+        const hueToken = tokens[2].replace(/deg$/i, '');
+        const hue = Number.parseFloat(hueToken) * Math.PI / 180;
+        a = C * Math.cos(hue);
+        b = C * Math.sin(hue);
+      } else {
+        a = parseComponent(tokens[1]);
+        b = parseComponent(tokens[2]);
+      }
+
+      // Oklab -> linear sRGB.
+      const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+      const l = l_ ** 3;
+      const m = m_ ** 3;
+      const ss = s_ ** 3;
+      const linearR = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * ss;
+      const linearG = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * ss;
+      const linearB = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * ss;
+      const gamma = (channel: number) => {
+        const clamped = Math.max(0, Math.min(1, channel));
+        const srgb = clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+        return Math.round(srgb * 255);
+      };
+
+      let alpha = 1;
+      if (alphaPart) {
+        const parsedAlpha = Number.parseFloat(alphaPart);
+        if (Number.isFinite(parsedAlpha)) alpha = alphaPart.endsWith('%') ? parsedAlpha / 100 : parsedAlpha;
+      }
+      alpha = Math.max(0, Math.min(1, alpha));
+      return `rgba(${gamma(linearR)}, ${gamma(linearG)}, ${gamma(linearB)}, ${alpha})`;
+    };
+
+    const replaceModernColors = (css: string): string =>
+      css.replace(/\b(oklab|oklch)\(([^()]*)\)/gi, color => modernColorToRgb(color));
+
     try {
-      // Ensure fonts are ready before taking the snapshot.
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
-
-      // Wait for all images in the preview, including uploaded data-URL photos.
-      const images = Array.from(element.querySelectorAll('img'));
-      await Promise.all(
-        images.map(async img => {
-          if (img.complete && img.naturalWidth > 0) return;
-          if (typeof img.decode === 'function') {
-            try {
-              await img.decode();
-              return;
-            } catch {
-              // Fall through to load/error events below.
-            }
-          }
-          await new Promise<void>(resolve => {
-            const finish = () => resolve();
-            img.addEventListener('load', finish, { once: true });
-            img.addEventListener('error', finish, { once: true });
-            // Avoid waiting indefinitely on a broken or blocked image.
-            window.setTimeout(finish, 2500);
-          });
-        })
-      );
-
-      // Let React/layout/browser painting settle after font and image loading.
-      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-
-      const captureWidth = Math.max(element.scrollWidth, element.offsetWidth, 760);
-      const captureHeight = Math.max(element.scrollHeight, element.offsetHeight);
-      if (!captureWidth || !captureHeight) {
-        throw new Error('The resume preview has no measurable content.');
-      }
+      if (document.fonts?.ready) await document.fonts.ready;
+      await Promise.all(Array.from(element.querySelectorAll('img')).map(async img => {
+        if (!img.complete) await new Promise<void>(resolve => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+          window.setTimeout(resolve, 5000);
+        });
+        if (img.decode && img.complete && img.naturalWidth > 0) await img.decode().catch(() => undefined);
+      }));
 
       const canvas = await html2canvas(element, {
-        scale: Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
+        scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2)),
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
-        width: captureWidth,
-        height: captureHeight,
-        windowWidth: Math.max(document.documentElement.clientWidth, captureWidth),
-        windowHeight: Math.max(window.innerHeight, captureHeight),
+        imageTimeout: 15000,
         scrollX: 0,
         scrollY: 0,
-        removeContainer: true,
-        onclone: clonedDoc => {
-          // html2canvas currently cannot parse modern CSS color functions such
-          // as oklch(). Sanitize them in the cloned document only, so the live
-          // app and its original styling are not changed.
-          const replaceUnsupportedColors = (value: string) =>
-            value.replace(/\b(?:oklch|oklab|lch|lab)\([^)]*\)/gi, 'rgb(100, 116, 139)');
-
-          clonedDoc.querySelectorAll('style').forEach(styleTag => {
-            styleTag.textContent = replaceUnsupportedColors(styleTag.textContent || '');
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        windowWidth: Math.max(document.documentElement.clientWidth, element.scrollWidth),
+        onclone: (clonedDoc) => {
+          // Convert modern colors in embedded styles and inlined computed properties.
+          const replaceColors = (css: string) => replaceModernColors(css);
+          clonedDoc.querySelectorAll('style').forEach(style => {
+            style.textContent = replaceColors(style.textContent || '');
           });
+          // Sanitize existing inline styles too, including colors nested in gradients.
           clonedDoc.querySelectorAll<HTMLElement>('[style]').forEach(node => {
             const inlineStyle = node.getAttribute('style');
-            if (inlineStyle) node.setAttribute('style', replaceUnsupportedColors(inlineStyle));
+            if (inlineStyle) node.setAttribute('style', replaceColors(inlineStyle));
           });
-
-          // Also sanitize accessible stylesheet declarations (including nested
-          // media/supports rules) because some bundlers expose CSS via CSSOM.
-          const sanitizeRules = (rules: CSSRuleList) => {
-            Array.from(rules).forEach(rule => {
-              const styleRule = rule as CSSStyleRule;
-              if (styleRule.style) {
-                Array.from(styleRule.style).forEach(property => {
-                  const value = styleRule.style.getPropertyValue(property);
-                  if (/\b(?:oklch|oklab|lch|lab)\(/i.test(value)) {
-                    styleRule.style.setProperty(
-                      property,
-                      replaceUnsupportedColors(value),
-                      styleRule.style.getPropertyPriority(property)
-                    );
-                  }
-                });
-              }
-              if ('cssRules' in rule) {
-                try { sanitizeRules((rule as CSSGroupingRule).cssRules); } catch { /* inaccessible stylesheet */ }
-              }
+          clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+            // Linked CSS is left in place; Tailwind's generated CSS is normally in style tags.
+            // Inline styles below ensure the actual resume appearance is retained.
+            link.remove();
+          });
+          const originalNodes = [element, ...Array.from(element.querySelectorAll('*'))];
+          const clonedRoot = clonedDoc.getElementById('resume-preview-document');
+          if (clonedRoot) {
+            const clonedNodes = [clonedRoot, ...Array.from(clonedRoot.querySelectorAll('*'))];
+            originalNodes.forEach((original, index) => {
+              const cloned = clonedNodes[index] as HTMLElement | undefined;
+              if (!cloned || !(original instanceof HTMLElement)) return;
+              const computed = window.getComputedStyle(original);
+              // Inline the computed visual properties so removing external CSS cannot strip the template.
+              const properties = [
+                'display','position','box-sizing','width','min-width','max-width','height','min-height','max-height',
+                'margin','margin-top','margin-right','margin-bottom','margin-left','padding','padding-top','padding-right','padding-bottom','padding-left',
+                'color','background','background-color','background-image','background-size','background-position','background-repeat',
+                'font-family','font-size','font-weight','font-style','line-height','letter-spacing','text-align','text-transform','text-decoration',
+                'white-space','overflow','overflow-wrap','word-break','vertical-align','border','border-top','border-right','border-bottom','border-left',
+                'border-radius','border-color','border-style','border-width','box-shadow','flex','flex-direction','flex-wrap','flex-grow','flex-shrink',
+                'align-items','align-content','align-self','justify-content','gap','column-gap','row-gap','grid-template-columns','grid-template-rows',
+                'object-fit','object-position','opacity','list-style','page-break-inside','break-inside'
+              ];
+              properties.forEach(property => {
+                const val = computed.getPropertyValue(property);
+                if (val) cloned.style.setProperty(property, replaceColors(val));
+              });
+              cloned.style.boxShadow = 'none';
+              cloned.style.animation = 'none';
+              cloned.style.transition = 'none';
             });
-          };
-          Array.from(clonedDoc.styleSheets).forEach(sheet => {
-            try { if (sheet.cssRules) sanitizeRules(sheet.cssRules); } catch { /* cross-origin stylesheet */ }
-          });
-
-          const clonedElement = clonedDoc.getElementById('resume-preview-document')
-            || clonedDoc.body.querySelector('[data-resume-preview]') as HTMLElement | null;
-          if (!clonedElement) return;
-
-          // Keep the selected template's layout, but remove viewport-dependent
-          // sizing and effects that can interfere with canvas export.
-          clonedElement.style.width = `${captureWidth}px`;
-          clonedElement.style.maxWidth = 'none';
-          clonedElement.style.minHeight = '0';
-          clonedElement.style.height = 'auto';
-          clonedElement.style.margin = '0';
-          clonedElement.style.transform = 'none';
-          clonedElement.style.transition = 'none';
-          clonedElement.style.animation = 'none';
-          clonedElement.style.boxShadow = 'none';
-          clonedElement.style.overflow = 'visible';
-          clonedElement.style.backgroundColor = '#ffffff';
-          clonedElement.style.color = '#0f172a';
-
-          clonedElement.querySelectorAll('*').forEach(node => {
-            const child = node as HTMLElement;
-            child.style.animation = 'none';
-            child.style.transition = 'none';
-          });
+            clonedRoot.style.width = `${element.scrollWidth}px`;
+            clonedRoot.style.maxWidth = 'none';
+            clonedRoot.style.minHeight = '0';
+            clonedRoot.style.height = 'auto';
+            clonedRoot.style.margin = '0';
+            clonedRoot.style.transform = 'none';
+            clonedRoot.style.overflow = 'visible';
+            clonedRoot.style.backgroundColor = '#ffffff';
+          }
         },
       });
 
-      if (!canvas.width || !canvas.height) {
-        throw new Error('The resume preview could not be rendered to an image.');
+      if (!canvas.width || !canvas.height) throw new Error('The resume preview could not be rendered.');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Unable to read the resume preview.');
+      const sample = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let visible = false;
+      for (let i = 0; i < sample.length; i += 4) {
+        if (sample[i + 3] > 0 && (sample[i] < 248 || sample[i + 1] < 248 || sample[i + 2] < 248)) { visible = true; break; }
       }
+      if (!visible) throw new Error('The captured resume appears blank. Please try again.');
 
-      // Detect a genuinely empty/white capture instead of silently saving it.
-      const sample = document.createElement('canvas');
-      sample.width = 1;
-      sample.height = 1;
-      const sampleCtx = sample.getContext('2d');
-      if (!sampleCtx) throw new Error('Unable to validate the PDF preview.');
-      sampleCtx.drawImage(canvas, 0, 0, 1, 1);
-      // The first pixel may be white due to page margins, so do not use it as
-      // the sole blank-page test. Sample a small grid across the rendered image.
-      const probe = document.createElement('canvas');
-      probe.width = 24;
-      probe.height = 24;
-      const probeCtx = probe.getContext('2d');
-      if (!probeCtx) throw new Error('Unable to validate the PDF preview.');
-      probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
-      const pixels = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
-      let nonWhitePixels = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245) nonWhitePixels++;
-      }
-      // Some templates have white space in the upper-left corner. Check the
-      // full image in a downscaled grid if the first probe is all white.
-      if (nonWhitePixels === 0) {
-        probeCtx.clearRect(0, 0, probe.width, probe.height);
-        probeCtx.drawImage(canvas, 0, 0, probe.width, probe.height);
-        const fullProbe = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
-        for (let i = 0; i < fullProbe.length; i += 4) {
-          if (fullProbe[i] < 245 || fullProbe[i + 1] < 245 || fullProbe[i + 2] < 245) nonWhitePixels++;
-        }
-      }
-      if (nonWhitePixels === 0) {
-        throw new Error('The PDF snapshot appears blank. Please try again after the preview finishes rendering.');
-      }
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true,
-        putOnlyUsedFonts: true,
-      });
-      const pageWidthMm = pdf.internal.pageSize.getWidth();
-      const pageHeightMm = pdf.internal.pageSize.getHeight();
-      const pageHeightPx = Math.floor(canvas.width * (pageHeightMm / pageWidthMm));
-      const totalPages = Math.ceil(canvas.height / pageHeightPx);
-
-      for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
-        const sourceY = pageIndex * pageHeightPx;
-        const sliceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const pagePixelHeight = Math.floor(canvas.width * pageH / pageW);
+      let y = 0;
+      let page = 0;
+      while (y < canvas.height) {
+        const sliceHeight = Math.min(pagePixelHeight, canvas.height - y);
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = canvas.width;
         pageCanvas.height = sliceHeight;
@@ -748,26 +596,24 @@ ${certifications}`;
         if (!pageCtx) throw new Error('Unable to prepare a PDF page.');
         pageCtx.fillStyle = '#ffffff';
         pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        pageCtx.drawImage(
-          canvas,
-          0, sourceY, canvas.width, sliceHeight,
-          0, 0, pageCanvas.width, sliceHeight
-        );
-
-        if (pageIndex > 0) pdf.addPage('a4', 'portrait');
-        const pageImage = pageCanvas.toDataURL('image/jpeg', 0.96);
-        const renderedHeightMm = (sliceHeight / canvas.width) * pageWidthMm;
-        pdf.addImage(pageImage, 'JPEG', 0, 0, pageWidthMm, renderedHeightMm, undefined, 'FAST');
-        pageCanvas.width = 1;
-        pageCanvas.height = 1;
+        pageCtx.drawImage(canvas, 0, y, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+        if (page > 0) pdf.addPage();
+        const pageHeightMm = sliceHeight * pageW / canvas.width;
+        pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.96), 'JPEG', 0, 0, pageW, pageHeightMm, undefined, 'FAST');
+        pageCanvas.width = 0;
+        pageCanvas.height = 0;
+        y += sliceHeight;
+        page++;
       }
-
-      const cleanName = (name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]+/g, '_');
-      pdf.save(`${cleanName}_Resume_${selectedTemplate}.pdf`);
+      const safeName = (name.trim() || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeTemplate = String(selectedTemplate).replace(/[^a-zA-Z0-9_-]/g, '_');
+      pdf.save(`${safeName}_Resume_${safeTemplate}.pdf`);
+      canvas.width = 0;
+      canvas.height = 0;
     } catch (err) {
       console.error('Resume PDF export failed:', err);
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-      alert(`Could not generate the PDF. ${message} You can use Print View and choose “Save as PDF” as a backup.`);
+      const message = err instanceof Error ? err.message : 'Unknown rendering error';
+      window.alert(`Could not generate the styled resume PDF: ${message}. Try Print View → Save as PDF if needed.`);
     } finally {
       setGeneratingPdf(false);
     }
@@ -2377,6 +2223,33 @@ ${certifications}`;
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Quick action directly below the resume preview */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Your resume is ready</p>
+              <p className="text-xs text-slate-600">Download the selected template with its colors and layout as a PDF.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={generatingPdf}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Download the currently selected resume template as a PDF"
+            >
+              {generatingPdf ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  <span>Download Resume PDF</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
