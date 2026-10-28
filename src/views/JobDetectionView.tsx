@@ -45,182 +45,167 @@ export const JobDetectionView: React.FC = () => {
   const [result, setResult] = useState<SafetyResult | null>(null);
   const [activeTab, setActiveTab] = useState<'verdict' | 'link' | 'signals' | 'checklist'>('verdict');
 
-  // Client-side fallback analyzer (prevents 404/deployment failures)
+  // Deterministic fallback used only when the API cannot be reached.
+  // "Low risk" means no obvious indicators were found; it is not proof a job is genuine.
   const evaluateSafetyLocally = (text: string, link: string): SafetyResult => {
-    const lowerText = (text || '').toLowerCase();
-    const lowerLink = (link || '').trim().toLowerCase();
-
     const textSignals: string[] = [];
     const linkSignals: string[] = [];
+    const sourceText = (text || '').trim();
+    const lowerText = sourceText.toLowerCase();
+    const sourceLink = (link || '').trim();
 
-    // Text pattern triggers
-    if (lowerText.includes('wire transfer') || lowerText.includes('money movement')) {
-      textSignals.push('Wire Transfer Request: Solicits upfront or direct funds transfer.');
-    }
-    if (lowerText.includes('registration fee') || lowerText.includes('application fee') || lowerText.includes('processing fee') || lowerText.includes('equipment fee')) {
-      textSignals.push('Advance-Fee Solicit: Demands fee for laptop, supplies, or application processing.');
-    }
-    if (lowerText.includes('telegram') || lowerText.includes('@') && lowerText.includes('telegram')) {
-      textSignals.push('Telegram Sourced: Recruitment conducted strictly via unverified Telegram chat.');
-    }
-    if (lowerText.includes('whatsapp') || lowerText.includes('wa.me')) {
-      textSignals.push('WhatsApp Communication: Unofficial recruitment messaging channel.');
-    }
-    if (lowerText.includes('crypto') || lowerText.includes('bitcoin') || lowerText.includes('cash app') || lowerText.includes('gift card')) {
-      textSignals.push('Irreversible Payment Method: Solicits payment through cryptocurrency or gift cards.');
-    }
-    if (lowerText.includes('no interview') || lowerText.includes('without any interview') || lowerText.includes('selected without')) {
-      textSignals.push('Unconditional Instant Offer: Direct employment offer without formal interview evaluations.');
-    }
-    if (lowerText.includes('urgent') && (lowerText.includes('24 hours') || lowerText.includes('immediate payment'))) {
-      textSignals.push('Artificial Urgency: High-pressure deadline forced on candidate.');
-    }
+    const addText = (condition: boolean, message: string) => {
+      if (condition && !textSignals.includes(message)) textSignals.push(message);
+    };
 
-    // Link triggers
+    addText(/\b(wire transfer|money movement|send money|transfer funds)\b/i.test(sourceText),
+      'Payment request: The message mentions transferring money or funds.');
+    addText(/\b(registration fee|application fee|processing fee|equipment fee|security deposit|pay to apply|upfront fee)\b/i.test(sourceText),
+      'Advance-fee request: The message appears to request an upfront fee or deposit.');
+    addText(/\b(telegram|t\.me)\b/i.test(sourceText),
+      'Telegram contact: Verify the recruiter independently before continuing.');
+    addText(/\b(whatsapp|wa\.me)\b/i.test(sourceText),
+      'WhatsApp contact: A messaging app alone does not verify a recruiter or job.');
+    addText(/\b(crypto|cryptocurrency|bitcoin|gift card|cash app|zelle)\b/i.test(sourceText),
+      'Unusual payment method: Cryptocurrency, gift cards, or peer-to-peer payments are mentioned.');
+    addText(/\b(no interview|without (an? )?interview|selected without|hired immediately|instant offer)\b/i.test(sourceText),
+      'Unusual hiring promise: The message suggests selection without a normal interview process.');
+    addText(/\b(urgent payment|pay immediately|within 24 hours)\b/i.test(sourceText),
+      'High-pressure wording: The message appears to pressure the candidate to act or pay quickly.');
+
+    let hostname = 'Not provided';
+    let protocol = 'Not checked';
+    let isSecure = false;
     let isLegitDomain = false;
-    let hostname = 'unknown';
-    let isSecure = true;
 
-    if (lowerLink) {
-      if (lowerLink.startsWith('http://')) {
-        isSecure = false;
-        linkSignals.push('Insecure Protocol: URL uses unencrypted HTTP rather than HTTPS.');
-      }
-
+    if (sourceLink) {
       try {
-        const parsed = new URL(lowerLink.startsWith('http') ? lowerLink : `https://${lowerLink}`);
-        hostname = parsed.hostname;
+        const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(sourceLink) ? sourceLink : `https://${sourceLink}`);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
+        hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+        isSecure = parsed.protocol === 'https:';
+        protocol = isSecure ? 'HTTPS' : 'HTTP (not encrypted)';
+        if (!isSecure) linkSignals.push('Insecure connection: This URL uses HTTP rather than HTTPS.');
+
+        const roots = [
+          'careers.google.com', 'google.com', 'microsoft.com', 'amazon.jobs', 'amazon.com',
+          'apple.com', 'meta.com', 'greenhouse.io', 'lever.co', 'myworkdayjobs.com',
+          'smartrecruiters.com', 'ashbyhq.com', 'workable.com', 'jobvite.com', 'taleo.net',
+          'icims.com', 'oraclecloud.com', 'successfactors.com', 'stripe.com', 'netflix.com',
+          'linkedin.com',
+        ];
+        isLegitDomain = roots.some(domain => hostname === domain || hostname.endsWith(`.${domain}`));
+
+        const suspiciousChecks: Array<{ test: (host: string) => boolean; message: string }> = [
+          { test: h => h === 't.me' || h.endsWith('.t.me') || h === 'telegram.me' || h.endsWith('.telegram.me'), message: 'Messaging redirect: The URL opens a Telegram destination.' },
+          { test: h => h === 'wa.me' || h.endsWith('.wa.me') || h === 'whatsapp.com' || h.endsWith('.whatsapp.com'), message: 'Messaging redirect: The URL opens a WhatsApp destination.' },
+          { test: h => h === 'bit.ly' || h.endsWith('.bit.ly') || h === 'tinyurl.com' || h.endsWith('.tinyurl.com'), message: 'Shortened URL: The final destination is not visible from this link alone.' },
+          { test: h => /\.(xyz|top|icu)$/.test(h), message: 'Uncommon domain ending: Verify the company and final destination independently.' },
+          { test: h => h === 'forms.gle' || h.endsWith('.forms.gle'), message: 'Generic form link: Confirm the form is linked from the employer’s official careers site.' },
+          { test: h => /amaz0n|g00gle|linked1n|micros0ft/.test(h), message: 'Possible brand impersonation: The domain contains a lookalike spelling.' },
+        ];
+        suspiciousChecks.forEach(item => {
+          if (item.test(hostname) && !linkSignals.includes(item.message)) linkSignals.push(item.message);
+        });
       } catch {
-        hostname = lowerLink.split('/')[0];
+        linkSignals.push('Invalid URL: Enter a full web address such as https://company.com/careers.');
       }
-
-      const verifiedDomains = [
-        'careers.google.com', 'microsoft.com', 'amazon.jobs', 'apple.com', 'meta.com',
-        'greenhouse.io', 'lever.co', 'myworkdayjobs.com', 'smartrecruiters.com',
-        'ashbyhq.com', 'workable.com', 'stripe.com', 'netflix.com'
-      ];
-
-      isLegitDomain = verifiedDomains.some(d => hostname.includes(d));
-
-      const suspiciousPatterns = [
-        { p: 'bit.ly', desc: 'Masked URL Shortener (bit.ly): Destination website is hidden.' },
-        { p: 'tinyurl', desc: 'Masked URL Shortener (tinyurl): Real domain is concealed.' },
-        { p: 't.me', desc: 'Direct Telegram channel link instead of verified company portal.' },
-        { p: 'wa.me', desc: 'Direct WhatsApp link instead of standard recruitment workflow.' },
-        { p: '.xyz', desc: 'High-Risk TLD (.xyz): Often utilized for disposable scam websites.' },
-        { p: '.top', desc: 'High-Risk TLD (.top): Commonly associated with illicit recruitment scams.' },
-        { p: 'forms.gle', desc: 'Generic Google Form utilized instead of an authenticated career system.' },
-        { p: 'amaz0n', desc: 'Typosquatting spoof attempting to imitate Amazon.' },
-        { p: 'g00gle', desc: 'Typosquatting spoof attempting to imitate Google.' },
-        { p: 'linked1n', desc: 'Typosquatting spoof attempting to imitate LinkedIn.' },
-      ];
-
-      suspiciousPatterns.forEach(pat => {
-        if (lowerLink.includes(pat.p)) {
-          linkSignals.push(pat.desc);
-        }
-      });
     }
 
     const allSignals = [...textSignals, ...linkSignals];
-    let score = (textSignals.length * 28) + (linkSignals.length * 32);
-    if (isLegitDomain) {
-      score = Math.max(0, score - 50);
-    }
-    score = Math.min(100, Math.max(0, score));
-
-    let level: 'HIGH RISK' | 'MEDIUM RISK' | 'LOW RISK' = 'LOW RISK';
-    let isReal = true;
-    let verdict = 'Real & Legitimate Job: Official corporate standards verified.';
-
-    if (score >= 50 || textSignals.length >= 2 || linkSignals.length >= 2) {
-      level = 'HIGH RISK';
-      isReal = false;
-      verdict = 'Fake Job / Scam Alert: Severe recruitment fraud patterns and fraudulent link signals discovered.';
-    } else if (score >= 20 || textSignals.length >= 1 || linkSignals.length >= 1) {
-      level = 'MEDIUM RISK';
-      isReal = false;
-      verdict = 'Caution / Suspicious Requisition: Unverified recruitment channel or irregular requisition phrasing.';
-    } else {
-      level = 'LOW RISK';
-      isReal = true;
-      verdict = isLegitDomain
-        ? 'Real Job Verified: Certified tier-1 corporate career portal with authentic recruitment protocols.'
-        : 'Legitimate Requisition: Safe candidate intake standards and no malicious patterns detected.';
-    }
+    const score = Math.min(100, textSignals.length * 25 + linkSignals.length * 30);
+    const level: SafetyResult['level'] =
+      score >= 50 || textSignals.length >= 2 || linkSignals.length >= 2
+        ? 'HIGH RISK'
+        : score >= 20 || allSignals.length > 0
+          ? 'MEDIUM RISK'
+          : 'LOW RISK';
+    const isReal = level === 'LOW RISK';
 
     return {
       score,
       level,
       is_real: isReal,
-      verdict,
+      verdict: level === 'HIGH RISK'
+        ? 'High risk: multiple potential fraud indicators were found.'
+        : level === 'MEDIUM RISK'
+          ? 'Caution: review the flagged indicators before sharing information or applying.'
+          : 'No obvious scam indicators were found. This does not prove the job or recruiter is genuine.',
       signals: allSignals.length,
       signal_details: allSignals,
-      link_audited: !!lowerLink,
+      link_audited: Boolean(sourceLink),
       link_signals: linkSignals,
       text_signals: textSignals,
       is_legit_domain: isLegitDomain,
       domain_analysis: {
         hostname,
-        protocol: isSecure ? 'HTTPS (Encrypted)' : 'HTTP (Insecure)',
+        protocol,
         is_secure: isSecure,
-        reputation: isLegitDomain
-          ? 'Trusted Corporate ATS'
-          : linkSignals.length > 0
-          ? 'Suspicious / Masked'
-          : 'Unverified Domain',
+        reputation: isLegitDomain ? 'Trusted Corporate ATS' : linkSignals.length ? 'Suspicious / Masked' : 'Unverified Domain',
       },
     };
   };
 
   const checkFraud = async () => {
-    if (!jobText.trim() && !jobLink.trim()) return;
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/job/fraud', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: jobText, link: jobLink }),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        // Enrich with domain analysis
-        let hostname = 'unknown';
-        try {
-          const l = jobLink.trim().toLowerCase();
-          const parsed = new URL(l.startsWith('http') ? l : `https://${l}`);
-          hostname = parsed.hostname;
-        } catch {
-          hostname = jobLink.split('/')[0] || 'unknown';
-        }
-
-        setResult({
-          ...data,
-          domain_analysis: {
-            hostname,
-            protocol: jobLink.toLowerCase().startsWith('http://') ? 'HTTP (Insecure)' : 'HTTPS (Encrypted)',
-            is_secure: !jobLink.toLowerCase().startsWith('http://'),
-            reputation: data.is_legit_domain
-              ? 'Trusted Corporate ATS'
-              : data.link_signals?.length > 0
-              ? 'Suspicious / Masked'
-              : 'Unverified Domain',
-          },
-        });
-        setLoading(false);
-        return;
-      }
-    } catch (e) {
-      console.warn('Network call failed, utilizing client-side fraud analysis:', e);
+    const text = jobText.trim();
+    const link = jobLink.trim();
+    if (!text && !link) {
+      setResult(null);
+      return;
     }
 
-    // Run robust local analysis
-    const localResult = evaluateSafetyLocally(jobText, jobLink);
-    setResult(localResult);
-    setLoading(false);
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch('/api/job/fraud', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, link }),
+          signal: controller.signal,
+        });
+        window.clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error(`Job analysis failed (${res.status})`);
+        const data = await res.json();
+
+        const valid =
+          typeof data?.score === 'number' &&
+          ['HIGH RISK', 'MEDIUM RISK', 'LOW RISK'].includes(data?.level) &&
+          typeof data?.is_real === 'boolean' &&
+          typeof data?.verdict === 'string';
+
+        if (!valid) throw new Error('The analysis service returned an unexpected response.');
+
+        const localDomain = evaluateSafetyLocally(text, link).domain_analysis;
+        setResult({
+          score: Math.max(0, Math.min(100, Math.round(data.score))),
+          level: data.level,
+          is_real: data.is_real,
+          verdict: data.verdict,
+          signals: Number(data.signals) || 0,
+          signal_details: Array.isArray(data.signal_details) ? data.signal_details : [],
+          link_audited: Boolean(data.link_audited),
+          link_signals: Array.isArray(data.link_signals) ? data.link_signals : [],
+          text_signals: Array.isArray(data.text_signals) ? data.text_signals : [],
+          is_legit_domain: Boolean(data.is_legit_domain),
+          domain_analysis: data.domain_analysis || localDomain,
+        });
+        setActiveTab('verdict');
+        return;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.warn('[CareerLens] Job detection API unavailable; using local checks.', error);
+      setResult(evaluateSafetyLocally(text, link));
+      setActiveTab('verdict');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -318,7 +303,7 @@ export const JobDetectionView: React.FC = () => {
             </button>
           </div>
           <p className="text-[11px] text-slate-400">
-            Paste destination website, shortened URL, or form link. Career Lens audits domain age, SSL status, and brand spoofing.
+            Paste destination website, shortened URL, or form link. Checks URL format, HTTPS, common shorteners, and lookalike-domain patterns. It cannot verify domain age or guarantee legitimacy.
           </p>
         </div>
 
@@ -406,7 +391,7 @@ export const JobDetectionView: React.FC = () => {
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight">{result.verdict}</h2>
                   <p className="text-xs mt-1 opacity-90 max-w-xl">
                     {result.is_real
-                      ? 'No advance payment requests, unverified chat links, or spoofed domains were observed.'
+                      ? 'No obvious indicators were found in this scan. Always verify the employer independently.'
                       : 'Candidate warning: Do not send money, provide social security numbers, or communicate outside verified corporate portals.'}
                   </p>
                 </div>
@@ -609,7 +594,7 @@ export const JobDetectionView: React.FC = () => {
                 ) : (
                   <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-medium text-emerald-900 flex items-center gap-2.5">
                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>No malicious link redirects, shortener masks, or phishing indicators detected.</span>
+                    <span>No obvious link indicators were found. This does not guarantee the destination is safe.</span>
                   </div>
                 )}
               </div>
