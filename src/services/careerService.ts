@@ -605,82 +605,221 @@ export interface SalaryEstimateResult {
   source: string;
 }
 
+interface SalaryRoleProfile {
+  keywords: string[];
+  india: number;       // Annual LPA
+  northAmerica: number; // Annual USD thousands
+  europe: number;       // Annual EUR thousands
+  skills: string[];
+  bonus: number;
+}
+
+/**
+ * CareerLens planning benchmarks, not a live salary feed.
+ * India values are LPA; North America/Europe values are annual thousands.
+ * Keep job-family skills specific so a non-IT role never receives an IT stack.
+ */
+const SALARY_ROLE_PROFILES: SalaryRoleProfile[] = [
+  { keywords: ['generative ai engineer', 'llm engineer'], india: 16, northAmerica: 175, europe: 90, skills: ['LLMs', 'RAG', 'Vector databases', 'Python', 'Model evaluation'], bonus: 18 },
+  { keywords: ['machine learning engineer', 'ml engineer'], india: 12, northAmerica: 145, europe: 75, skills: ['Python', 'PyTorch', 'TensorFlow', 'Model deployment', 'MLOps'], bonus: 15 },
+  { keywords: ['artificial intelligence engineer', 'ai engineer'], india: 13, northAmerica: 155, europe: 80, skills: ['Python', 'Machine learning', 'Model evaluation', 'Data preparation', 'Model deployment'], bonus: 15 },
+  { keywords: ['data scientist', 'data science'], india: 11, northAmerica: 130, europe: 68, skills: ['Python', 'SQL', 'Statistics', 'Machine learning', 'Experimentation'], bonus: 12 },
+  { keywords: ['data engineer'], india: 10, northAmerica: 125, europe: 65, skills: ['SQL', 'Python', 'Data pipelines', 'ETL', 'Cloud data platforms'], bonus: 12 },
+  { keywords: ['business intelligence analyst', 'data analyst', 'bi analyst'], india: 6, northAmerica: 80, europe: 45, skills: ['SQL', 'Excel', 'Power BI', 'Tableau', 'Statistics'], bonus: 8 },
+  { keywords: ['business analyst'], india: 7, northAmerica: 90, europe: 48, skills: ['Requirements analysis', 'Process mapping', 'Excel', 'SQL', 'Stakeholder communication'], bonus: 8 },
+  { keywords: ['software architect', 'solution architect'], india: 24, northAmerica: 190, europe: 100, skills: ['System design', 'Architecture', 'Security', 'Cloud platforms', 'Distributed systems'], bonus: 20 },
+  { keywords: ['full stack developer', 'full-stack developer'], india: 9, northAmerica: 120, europe: 62, skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'SQL'], bonus: 10 },
+  { keywords: ['frontend developer', 'front end developer', 'ui developer'], india: 7, northAmerica: 105, europe: 55, skills: ['HTML', 'CSS', 'JavaScript', 'React', 'Accessibility'], bonus: 8 },
+  { keywords: ['backend developer', 'back end developer'], india: 9, northAmerica: 125, europe: 65, skills: ['API design', 'SQL', 'Authentication', 'Testing', 'System design'], bonus: 10 },
+  { keywords: ['software engineer', 'software developer', 'application developer'], india: 8, northAmerica: 120, europe: 62, skills: ['Programming', 'Data structures', 'Testing', 'Git', 'System design'], bonus: 10 },
+  { keywords: ['devops engineer', 'devops'], india: 10, northAmerica: 125, europe: 65, skills: ['Linux', 'CI/CD', 'Docker', 'Kubernetes', 'Infrastructure as Code'], bonus: 12 },
+  { keywords: ['site reliability engineer', 'sre'], india: 14, northAmerica: 155, europe: 80, skills: ['Linux', 'Observability', 'Incident response', 'Automation', 'Cloud infrastructure'], bonus: 15 },
+  { keywords: ['cloud engineer'], india: 9, northAmerica: 125, europe: 65, skills: ['AWS', 'Azure', 'Networking', 'Linux', 'Infrastructure as Code'], bonus: 10 },
+  { keywords: ['cybersecurity engineer', 'penetration tester', 'security engineer'], india: 12, northAmerica: 140, europe: 72, skills: ['Security testing', 'Threat modelling', 'Networking', 'Incident response', 'Cloud security'], bonus: 12 },
+  { keywords: ['cybersecurity analyst', 'security analyst'], india: 8, northAmerica: 105, europe: 55, skills: ['SIEM', 'Security monitoring', 'Networking', 'Incident response', 'Risk assessment'], bonus: 10 },
+  { keywords: ['qa automation engineer', 'test automation engineer'], india: 7, northAmerica: 100, europe: 52, skills: ['Test automation', 'Playwright', 'Selenium', 'API testing', 'CI/CD'], bonus: 8 },
+  { keywords: ['quality assurance engineer', 'qa engineer', 'software tester'], india: 5, northAmerica: 82, europe: 43, skills: ['Test cases', 'Bug reporting', 'Regression testing', 'API testing', 'Attention to detail'], bonus: 6 },
+  { keywords: ['product manager'], india: 18, northAmerica: 150, europe: 78, skills: ['Product strategy', 'Roadmapping', 'Analytics', 'User research', 'Stakeholder management'], bonus: 15 },
+  { keywords: ['project manager'], india: 12, northAmerica: 115, europe: 60, skills: ['Project planning', 'Risk management', 'Budget tracking', 'Communication', 'Agile'], bonus: 10 },
+  { keywords: ['ux designer', 'ui designer', 'product designer'], india: 8, northAmerica: 110, europe: 58, skills: ['Figma', 'Prototyping', 'User research', 'Accessibility', 'Design systems'], bonus: 8 },
+
+  { keywords: ['mechanical engineering manager', 'mechanical engineer', 'mechanical engineering'], india: 5.5, northAmerica: 86, europe: 46, skills: ['CAD/CAE', 'Mechanical design', 'Manufacturing processes', 'Materials', 'Quality testing'], bonus: 6 },
+  { keywords: ['civil engineer', 'civil engineering', 'structural engineer'], india: 5.5, northAmerica: 84, europe: 45, skills: ['AutoCAD', 'Structural analysis', 'Construction planning', 'Building codes', 'Site safety'], bonus: 6 },
+  { keywords: ['electrical engineer', 'electrical engineering'], india: 6, northAmerica: 92, europe: 48, skills: ['Circuit design', 'Power systems', 'Electrical safety', 'PLC', 'Testing'], bonus: 7 },
+  { keywords: ['electronics engineer', 'electronics engineering', 'embedded systems engineer'], india: 6.5, northAmerica: 100, europe: 52, skills: ['Circuit design', 'Embedded C', 'Microcontrollers', 'PCB design', 'Testing'], bonus: 7 },
+  { keywords: ['chemical engineer', 'chemical engineering'], india: 6, northAmerica: 100, europe: 54, skills: ['Process engineering', 'Process safety', 'Quality control', 'Thermodynamics', 'Plant operations'], bonus: 8 },
+  { keywords: ['automobile engineer', 'automotive engineer', 'automotive technician'], india: 5.5, northAmerica: 78, europe: 43, skills: ['Vehicle systems', 'Diagnostics', 'CAD', 'Quality testing', 'Manufacturing'], bonus: 6 },
+  { keywords: ['aerospace engineer', 'aeronautical engineer'], india: 8, northAmerica: 120, europe: 62, skills: ['Aerodynamics', 'CAD/CAE', 'Materials', 'Systems testing', 'Safety standards'], bonus: 8 },
+  { keywords: ['biomedical engineer', 'biomedical engineering'], india: 6, northAmerica: 90, europe: 48, skills: ['Medical devices', 'Instrumentation', 'Quality systems', 'Regulatory standards', 'Testing'], bonus: 7 },
+  { keywords: ['industrial engineer', 'manufacturing engineer', 'production engineer'], india: 6, northAmerica: 88, europe: 47, skills: ['Lean manufacturing', 'Process improvement', 'Quality control', 'CAD', 'Production planning'], bonus: 7 },
+  { keywords: ['environmental engineer', 'environmental scientist'], india: 5.5, northAmerica: 78, europe: 43, skills: ['Environmental compliance', 'Impact assessment', 'Sampling', 'Waste management', 'Reporting'], bonus: 5 },
+  { keywords: ['construction manager', 'site engineer'], india: 7, northAmerica: 95, europe: 50, skills: ['Project scheduling', 'Cost estimation', 'Site coordination', 'Safety compliance', 'Quality control'], bonus: 8 },
+
+  { keywords: ['doctor', 'physician', 'medical doctor'], india: 12, northAmerica: 220, europe: 90, skills: ['Clinical assessment', 'Patient care', 'Diagnosis', 'Medical ethics', 'Clinical documentation'], bonus: 10 },
+  { keywords: ['registered nurse', 'nurse'], india: 4, northAmerica: 82, europe: 42, skills: ['Patient care', 'Clinical documentation', 'Medication safety', 'Communication', 'Emergency response'], bonus: 4 },
+  { keywords: ['dentist'], india: 7, northAmerica: 150, europe: 65, skills: ['Dental assessment', 'Patient care', 'Oral surgery', 'Infection control', 'Treatment planning'], bonus: 6 },
+  { keywords: ['pharmacist'], india: 4.5, northAmerica: 125, europe: 48, skills: ['Medication safety', 'Drug interactions', 'Dispensing', 'Patient counselling', 'Regulatory compliance'], bonus: 4 },
+  { keywords: ['physiotherapist', 'physical therapist'], india: 4, northAmerica: 78, europe: 40, skills: ['Rehabilitation', 'Exercise prescription', 'Patient assessment', 'Anatomy', 'Treatment planning'], bonus: 4 },
+  { keywords: ['medical laboratory technician', 'lab technician'], india: 3.5, northAmerica: 55, europe: 32, skills: ['Sample handling', 'Laboratory safety', 'Quality control', 'Clinical testing', 'Documentation'], bonus: 3 },
+  { keywords: ['healthcare administrator', 'hospital administrator'], india: 8, northAmerica: 105, europe: 55, skills: ['Healthcare operations', 'Compliance', 'Staff coordination', 'Budgeting', 'Patient experience'], bonus: 8 },
+
+  { keywords: ['financial manager', 'finance manager'], india: 14, northAmerica: 145, europe: 75, skills: ['Financial planning', 'Forecasting', 'Budgeting', 'Financial reporting', 'Risk management'], bonus: 15 },
+  { keywords: ['financial analyst', 'finance analyst'], india: 8, northAmerica: 90, europe: 48, skills: ['Financial modelling', 'Excel', 'Forecasting', 'Financial reporting', 'Data analysis'], bonus: 8 },
+  { keywords: ['accountant', 'accounting'], india: 5, northAmerica: 65, europe: 38, skills: ['Accounting', 'Excel', 'Financial statements', 'Tax compliance', 'Reconciliation'], bonus: 5 },
+  { keywords: ['auditor', 'audit associate'], india: 6, northAmerica: 72, europe: 40, skills: ['Audit procedures', 'Internal controls', 'Accounting standards', 'Documentation', 'Risk assessment'], bonus: 5 },
+  { keywords: ['tax consultant', 'tax analyst'], india: 6, northAmerica: 78, europe: 42, skills: ['Tax preparation', 'Tax regulations', 'Accounting', 'Research', 'Client communication'], bonus: 6 },
+  { keywords: ['banking associate', 'bank officer'], india: 5, northAmerica: 65, europe: 38, skills: ['Customer service', 'Financial products', 'Compliance', 'Risk awareness', 'Communication'], bonus: 5 },
+
+  { keywords: ['human resources manager', 'hr manager'], india: 10, northAmerica: 105, europe: 55, skills: ['People management', 'Employee relations', 'HR analytics', 'Performance management', 'Employment law'], bonus: 10 },
+  { keywords: ['recruiter', 'talent acquisition'], india: 6, northAmerica: 75, europe: 40, skills: ['Candidate sourcing', 'Interviewing', 'ATS', 'Candidate experience', 'Communication'], bonus: 8 },
+  { keywords: ['marketing manager', 'digital marketing specialist', 'digital marketing'], india: 7, northAmerica: 90, europe: 47, skills: ['SEO/SEM', 'Campaign analytics', 'Content strategy', 'Marketing automation', 'Conversion optimisation'], bonus: 8 },
+  { keywords: ['sales manager', 'account executive'], india: 9, northAmerica: 100, europe: 52, skills: ['Negotiation', 'CRM', 'Pipeline management', 'Forecasting', 'Client relationships'], bonus: 15 },
+  { keywords: ['sales executive', 'sales representative'], india: 4.5, northAmerica: 65, europe: 36, skills: ['Product knowledge', 'Customer communication', 'CRM', 'Negotiation', 'Lead generation'], bonus: 12 },
+  { keywords: ['operations manager'], india: 10, northAmerica: 100, europe: 52, skills: ['Process improvement', 'People management', 'KPIs', 'Budgeting', 'Operational planning'], bonus: 10 },
+  { keywords: ['supply chain manager', 'logistics manager'], india: 9, northAmerica: 100, europe: 52, skills: ['Demand planning', 'Inventory management', 'Procurement', 'Logistics', 'ERP systems'], bonus: 10 },
+  { keywords: ['customer support specialist', 'customer service representative'], india: 3.5, northAmerica: 48, europe: 30, skills: ['Customer communication', 'Ticketing systems', 'Problem solving', 'Product knowledge', 'Conflict resolution'], bonus: 3 },
+
+  { keywords: ['college professor', 'university lecturer', 'lecturer'], india: 7, northAmerica: 85, europe: 48, skills: ['Subject expertise', 'Teaching', 'Research', 'Assessment design', 'Student mentoring'], bonus: 5 },
+  { keywords: ['school teacher', 'teacher'], india: 4, northAmerica: 55, europe: 35, skills: ['Lesson planning', 'Classroom management', 'Assessment', 'Communication', 'Student support'], bonus: 3 },
+  { keywords: ['corporate trainer', 'instructional designer'], india: 6, northAmerica: 78, europe: 42, skills: ['Learning design', 'Facilitation', 'Curriculum development', 'Learning assessment', 'Presentation'], bonus: 5 },
+
+  { keywords: ['graphic designer'], india: 5, northAmerica: 62, europe: 36, skills: ['Adobe Creative Suite', 'Typography', 'Layout', 'Brand systems', 'Visual communication'], bonus: 4 },
+  { keywords: ['video editor', 'film editor'], india: 4.5, northAmerica: 60, europe: 35, skills: ['Video editing', 'Storytelling', 'Audio editing', 'Colour correction', 'Motion graphics'], bonus: 4 },
+  { keywords: ['content writer', 'copywriter'], india: 4.5, northAmerica: 60, europe: 34, skills: ['Writing', 'Editing', 'Research', 'SEO writing', 'Audience awareness'], bonus: 4 },
+  { keywords: ['journalist', 'reporter'], india: 4, northAmerica: 58, europe: 34, skills: ['Research', 'Fact checking', 'Interviewing', 'Writing', 'Editorial standards'], bonus: 3 },
+
+  { keywords: ['chef', 'head chef'], india: 4.5, northAmerica: 52, europe: 32, skills: ['Food preparation', 'Food safety', 'Menu planning', 'Kitchen operations', 'Cost control'], bonus: 4 },
+  { keywords: ['hotel manager', 'hospitality manager'], india: 7, northAmerica: 72, europe: 42, skills: ['Guest relations', 'Staff scheduling', 'Revenue management', 'Operations', 'Service standards'], bonus: 6 },
+  { keywords: ['electrician'], india: 3.5, northAmerica: 62, europe: 38, skills: ['Electrical safety', 'Wiring', 'Fault diagnosis', 'Blueprint reading', 'Local code compliance'], bonus: 3 },
+  { keywords: ['plumber'], india: 3, northAmerica: 58, europe: 35, skills: ['Pipe installation', 'Leak diagnosis', 'Blueprint reading', 'Safety', 'Maintenance'], bonus: 3 },
+  { keywords: ['hvac technician', 'hvac engineer'], india: 4.5, northAmerica: 65, europe: 38, skills: ['HVAC systems', 'Refrigeration', 'Troubleshooting', 'Electrical safety', 'Preventive maintenance'], bonus: 4 },
+
+  { keywords: ['agricultural engineer', 'agriculture engineer'], india: 5, northAmerica: 78, europe: 42, skills: ['Irrigation systems', 'Soil and water management', 'Farm machinery', 'Sustainability', 'Field assessment'], bonus: 5 },
+  { keywords: ['agronomist'], india: 4.5, northAmerica: 68, europe: 38, skills: ['Crop science', 'Soil management', 'Field trials', 'Pest management', 'Data collection'], bonus: 4 },
+  { keywords: ['food technologist', 'food scientist'], india: 5, northAmerica: 75, europe: 42, skills: ['Food safety', 'Quality assurance', 'Product development', 'HACCP', 'Laboratory testing'], bonus: 5 },
+  { keywords: ['research scientist'], india: 7, northAmerica: 105, europe: 55, skills: ['Research methods', 'Data analysis', 'Experimental design', 'Scientific writing', 'Lab safety'], bonus: 7 },
+
+  { keywords: ['lawyer', 'attorney'], india: 7, northAmerica: 130, europe: 62, skills: ['Legal research', 'Drafting', 'Negotiation', 'Case analysis', 'Client communication'], bonus: 8 },
+  { keywords: ['compliance officer', 'legal advisor'], india: 8, northAmerica: 100, europe: 52, skills: ['Regulatory compliance', 'Policy review', 'Risk assessment', 'Documentation', 'Legal research'], bonus: 8 },
+];
+
+function normalizeSalaryText(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+.#\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findSalaryProfile(role: string): SalaryRoleProfile | undefined {
+  const normalizedRole = normalizeSalaryText(role);
+  const profiles = [...SALARY_ROLE_PROFILES].sort((a, b) => {
+    const aLength = Math.max(...a.keywords.map(keyword => normalizeSalaryText(keyword).length));
+    const bLength = Math.max(...b.keywords.map(keyword => normalizeSalaryText(keyword).length));
+    return bLength - aLength;
+  });
+
+  return profiles.find(profile =>
+    profile.keywords.some(keyword => {
+      const normalizedKeyword = normalizeSalaryText(keyword);
+      return normalizedRole === normalizedKeyword ||
+        normalizedRole.startsWith(`${normalizedKeyword} `) ||
+        normalizedRole.includes(` ${normalizedKeyword} `) ||
+        normalizedRole.endsWith(` ${normalizedKeyword}`);
+    })
+  );
+}
+
+function getExperienceMultiplier(experience: string): number {
+  const value = normalizeSalaryText(experience);
+  if (value.includes('fresher') || value.includes('intern') || value.includes('0-1') || value.includes('0 1')) return 0.72;
+  if (value.includes('entry')) return 0.82;
+  if (value.includes('lead') || value.includes('principal') || value.includes('director') || value.includes('manager') || value.includes('8+')) return 1.85;
+  if (value.includes('senior') || value.includes('5-8') || value.includes('5 8')) return 1.5;
+  if (value.includes('mid') || value.includes('2-5') || value.includes('2 5')) return 1;
+  return 1;
+}
+
 export function estimateSalaryClientSide(
   role = 'Software Developer',
-  experience = 'Mid-Level (2-5 yrs)',
+  experience = 'Mid Level',
   location = 'India',
   skills: string[] = []
 ): SalaryEstimateResult {
-  const roleL = (role || 'Software Developer').toLowerCase();
-  const locL = (location || 'India').toLowerCase();
+  const safeRole = String(role || '').trim().slice(0, 120) || 'Other Professional';
+  const safeExperience = String(experience || '').trim().slice(0, 60) || 'Mid Level';
+  const safeLocation = String(location || '').trim().slice(0, 100) || 'India';
+  const normalizedLocation = normalizeSalaryText(safeLocation);
+  const profile = findSalaryProfile(safeRole);
 
-  let baseLPA = 5.0;
-  const isUSD = locL.includes('north america') || locL.includes('usd') || locL.includes('global remote');
-  const isEUR = locL.includes('europe') || locL.includes('eur');
+  // Generic cross-industry fallback; does not assume a software job.
+  const fallbackProfile: SalaryRoleProfile = {
+    keywords: [],
+    india: 5.5,
+    northAmerica: 72,
+    europe: 40,
+    skills: ['Role-specific qualifications', 'Communication', 'Problem solving', 'Relevant work experience'],
+    bonus: 5,
+  };
+  const selectedProfile = profile || fallbackProfile;
+  const multiplier = getExperienceMultiplier(safeExperience);
 
-  if (['ai', 'machine learning', 'deep learning', 'llm', 'computer vision'].some(k => roleL.includes(k))) baseLPA = 8.5;
-  else if (['data scientist', 'data science'].some(k => roleL.includes(k))) baseLPA = 7.5;
-  else if (['cloud', 'devops', 'sre', 'platform', 'infrastructure'].some(k => roleL.includes(k))) baseLPA = 7.2;
-  else if (['full stack', 'backend', 'distributed systems', 'system architect'].some(k => roleL.includes(k))) baseLPA = 6.8;
-  else if (['software', 'developer', 'frontend', 'mobile', 'ios', 'android'].some(k => roleL.includes(k))) baseLPA = 5.8;
-  else if (['product manager', 'project manager', 'scrum master'].some(k => roleL.includes(k))) baseLPA = 7.0;
-  else if (['cybersecurity', 'security analyst', 'infosec'].some(k => roleL.includes(k))) baseLPA = 6.5;
-  else if (['data analyst', 'business analyst', 'bi developer'].some(k => roleL.includes(k))) baseLPA = 4.8;
-  else if (['qa', 'testing', 'automation engineer'].some(k => roleL.includes(k))) baseLPA = 4.5;
-  else if (['finance', 'accountant', 'financial analyst'].some(k => roleL.includes(k))) baseLPA = 4.5;
-  else if (['hr', 'talent acquisition', 'recruiter', 'marketing'].some(k => roleL.includes(k))) baseLPA = 4.2;
+  // Only apply a small premium when the supplied skills match this role's own
+  // recommended skills; unrelated technical skills do not boost other jobs.
+  const suppliedSkills = Array.isArray(skills)
+    ? skills.map(skill => normalizeSalaryText(String(skill)))
+    : [];
+  const relevantMatches = selectedProfile.skills.filter(skill => {
+    const normalizedSkill = normalizeSalaryText(skill);
+    return suppliedSkills.some(input => input && (
+      input.includes(normalizedSkill) || normalizedSkill.includes(input)
+    ));
+  }).length;
+  const skillPremium = Math.min(0.08, relevantMatches * 0.02);
+  const adjusted = (base: number) => base * multiplier * (1 + skillPremium);
 
-  if (experience.includes('Fresher') || experience.includes('0-1')) {
-    baseLPA *= 0.85;
-  } else if (experience.includes('Mid') || experience.includes('2-5')) {
-    baseLPA *= 1.45;
-  } else if (experience.includes('Senior') || experience.includes('5-8')) {
-    baseLPA *= 2.15;
-  } else if (experience.includes('Lead') || experience.includes('Principal') || experience.includes('8+')) {
-    baseLPA *= 2.95;
-  }
-
-  const skillsList = Array.isArray(skills) ? skills.map(s => String(s).toLowerCase()) : [];
-  let skillPremium = 0;
-  if (skillsList.some(s => s.includes('aws') || s.includes('kubernetes') || s.includes('docker'))) skillPremium += 0.08;
-  if (skillsList.some(s => s.includes('pytorch') || s.includes('machine learning') || s.includes('fastapi'))) skillPremium += 0.10;
-  if (skillsList.some(s => s.includes('system design') || s.includes('microservices'))) skillPremium += 0.07;
-  baseLPA *= (1 + skillPremium);
+  const isUSD = /north america|united states|usa|canada|usd/.test(normalizedLocation);
+  const isEUR = /europe|eur|germany|france|netherlands|ireland|spain|italy|portugal|sweden|denmark|finland|belgium/.test(normalizedLocation);
+  const isGlobalRemote = /global remote|worldwide remote/.test(normalizedLocation);
 
   let currencySymbol = '₹';
-  let currencyCode = 'LPA (INR)';
+  let currencyCode = 'INR / LPA';
   let minSalary: number;
   let maxSalary: number;
   let medianSalary: number;
   let monthlyInHand: number;
 
-  if (isUSD) {
+  if (isUSD || isGlobalRemote) {
     currencySymbol = '$';
-    currencyCode = 'USD / Year';
-    const baseUSD = baseLPA * 14.5;
-    minSalary = Math.round(baseUSD * 0.82);
-    maxSalary = Math.round(baseUSD * 1.55);
-    medianSalary = Math.round((minSalary + maxSalary) / 2);
-    monthlyInHand = Math.round((medianSalary * 1000 * 0.72) / 12);
+    currencyCode = 'USD / year (thousands)';
+    const base = adjusted(selectedProfile.northAmerica);
+    minSalary = Math.round(base * 0.8);
+    maxSalary = Math.round(base * 1.25);
+    medianSalary = Math.round(base);
+    monthlyInHand = Math.round((medianSalary * 1000 * 0.68) / 12);
   } else if (isEUR) {
     currencySymbol = '€';
-    currencyCode = 'EUR / Year';
-    const baseEUR = baseLPA * 11.0;
-    minSalary = Math.round(baseEUR * 0.82);
-    maxSalary = Math.round(baseEUR * 1.5);
-    medianSalary = Math.round((minSalary + maxSalary) / 2);
-    monthlyInHand = Math.round((medianSalary * 1000 * 0.65) / 12);
+    currencyCode = 'EUR / year (thousands)';
+    const base = adjusted(selectedProfile.europe);
+    minSalary = Math.round(base * 0.8);
+    maxSalary = Math.round(base * 1.25);
+    medianSalary = Math.round(base);
+    monthlyInHand = Math.round((medianSalary * 1000 * 0.68) / 12);
   } else {
-    minSalary = Math.round(baseLPA * 0.85 * 10) / 10;
-    maxSalary = Math.round(baseLPA * 1.75 * 10) / 10;
-    medianSalary = Math.round(((minSalary + maxSalary) / 2) * 10) / 10;
-    monthlyInHand = Math.round((medianSalary * 100000 * 0.88) / 12);
+    const base = adjusted(selectedProfile.india);
+    minSalary = Math.round(base * 0.8 * 10) / 10;
+    maxSalary = Math.round(base * 1.25 * 10) / 10;
+    medianSalary = Math.round(base * 10) / 10;
+    monthlyInHand = Math.round((medianSalary * 100000 * 0.78) / 12);
   }
 
+  const bonusLow = Math.max(0, selectedProfile.bonus - 3);
+  const bonusHigh = selectedProfile.bonus + 3;
+
   return {
-    role,
-    experience,
-    location,
+    role: safeRole,
+    experience: safeExperience,
+    location: safeLocation,
     currency_symbol: currencySymbol,
     currency_code: currencyCode,
     min_salary: minSalary,
@@ -690,16 +829,22 @@ export function estimateSalaryClientSide(
     quartiles: {
       q25: minSalary,
       q50: medianSalary,
-      q75: Math.round((minSalary * 0.35 + maxSalary * 0.65) * 10) / 10,
+      q75: Math.round((minSalary * 0.4 + maxSalary * 0.6) * 10) / 10,
       q90: maxSalary,
     },
-    bonus_percentage: experience.includes('Lead') ? '18% - 25%' : experience.includes('Senior') ? '15% - 20%' : '10% - 15%',
-    equity_grant: experience.includes('Senior') || experience.includes('Lead') ? 'Significant ESOPs / RSUs (0.05% - 0.25%)' : 'Performance Stock Option pool eligible',
-    market_sentiment: 'High Market Demand (+16% YoY Hiring Growth)',
-    top_paying_skills: ['FastAPI', 'PyTorch', 'AWS', 'Kubernetes', 'System Design', 'React/Next.js'],
-    negotiation_tip: 'Always negotiate total compensation (Base + Variable + Stock). Ground your counter-offer on documented metric outcomes.',
-    note: 'Indicative compensation benchmark derived from current verified hiring datasets.',
-    source: 'careerlens-salary-engine-v5',
+    bonus_percentage: `${bonusLow}% - ${bonusHigh}%`,
+    equity_grant: multiplier >= 1.5
+      ? 'Equity or long-term incentives may be available; depends on employer and role'
+      : 'Benefits and incentives vary by employer and role',
+    market_sentiment: profile
+      ? 'Indicative role-specific benchmark; live hiring data is not connected'
+      : 'General cross-industry estimate; no exact role benchmark found',
+    top_paying_skills: selectedProfile.skills,
+    negotiation_tip: 'Compare several recent vacancies in the same location and seniority. Evaluate base pay, variable pay, benefits, hours, and progression before negotiating.',
+    note: 'Planning estimate only, not a live or verified salary quote. Actual compensation varies by employer, city, qualifications, industry, and experience.',
+    source: profile
+      ? 'CareerLens role-specific planning benchmarks'
+      : 'CareerLens general cross-industry planning benchmark',
   };
 }
 
@@ -709,21 +854,54 @@ export async function safeEstimateSalary(
   location: string,
   skills: string[] = []
 ): Promise<SalaryEstimateResult> {
+  const requestedRole = String(role || '').trim() || 'Other Professional';
+  const requestedExperience = String(experience || '').trim() || 'Mid Level';
+  const requestedLocation = String(location || '').trim() || 'India';
+
   try {
-    const res = await fetch('/api/salary/estimate', {
+    const response = await fetch('/api/salary/estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, experience, location, skills }),
+      body: JSON.stringify({
+        role: requestedRole,
+        experience: requestedExperience,
+        location: requestedLocation,
+        skills: Array.isArray(skills) ? skills : [],
+      }),
     });
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      return await res.json();
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
+      throw new Error('Salary API unavailable');
     }
-  } catch (err) {
-    // Network fallback
+
+    const result = await response.json() as SalaryEstimateResult;
+    if (
+      !result ||
+      typeof result.min_salary !== 'number' ||
+      typeof result.max_salary !== 'number' ||
+      typeof result.median_salary !== 'number' ||
+      !Array.isArray(result.top_paying_skills)
+    ) {
+      throw new Error('Invalid salary API response');
+    }
+
+    return {
+      ...result,
+      role: requestedRole,
+      experience: requestedExperience,
+      location: requestedLocation,
+    };
+  } catch {
+    return estimateSalaryClientSide(
+      requestedRole,
+      requestedExperience,
+      requestedLocation,
+      skills
+    );
   }
-  return estimateSalaryClientSide(role, experience, location, skills);
 }
+
 
 export async function safeAskAssistant(messages: Array<{ role: 'user' | 'assistant'; content: string }>, resumeContext = ''): Promise<string> {
   const latestUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content || '';
