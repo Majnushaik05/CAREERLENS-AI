@@ -1,336 +1,552 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, Info, Briefcase, MapPin, Search, ArrowRight, TrendingUp, Sparkles, CheckCircle2, ShieldCheck, Copy, Check } from 'lucide-react';
-import { safeEstimateSalary, SalaryEstimateResult } from '../services/careerService';
+export interface SalaryEstimateResult {
+  role: string;
+  experience: string;
+  location: string;
+  currency_symbol: string;
+  currency_code: string;
+  min_salary: number;
+  max_salary: number;
+  median_salary: number;
+  monthly_in_hand: number;
+  quartiles: {
+    q25: number;
+    q50: number;
+    q75: number;
+    q90: number;
+  };
+  bonus_percentage: string;
+  equity_grant: string;
+  market_sentiment: string;
+  top_paying_skills: string[];
+  negotiation_tip: string;
+  note: string;
+  source: string;
+}
 
-export const SalaryEstimationView: React.FC = () => {
-  const [role, setRole] = useState('Machine Learning Engineer');
-  const [experience, setExperience] = useState('Mid-Level (2-5 yrs)');
-  const [location, setLocation] = useState('India');
-  const [data, setData] = useState<SalaryEstimateResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [copiedScript, setCopiedScript] = useState(false);
+/**
+ * Salary estimates are indicative benchmarks, not verified live salary offers.
+ * Indian figures are expressed in LPA.
+ * USD/EUR figures are expressed in annual thousands.
+ *
+ * The role profiles intentionally distinguish specific job families.
+ * They are planning estimates and should not be presented as live market data.
+ */
+interface SalaryRoleProfile {
+  keywords: string[];
+  india: number;
+  northAmerica: number;
+  europe: number;
+  skills: string[];
+  bonus: number;
+}
 
-  const popularRoles = [
-    'Machine Learning Engineer',
-    'Full Stack Developer',
-    'Cloud DevOps Architect',
-    'Data Scientist',
-    'Software Engineer',
-    'Product Manager',
-    'Cybersecurity Analyst',
-  ];
+const SALARY_ROLE_PROFILES: SalaryRoleProfile[] = [
+  {
+    keywords: ['machine learning engineer', 'ml engineer'],
+    india: 12,
+    northAmerica: 145,
+    europe: 75,
+    skills: ['Python', 'PyTorch', 'TensorFlow', 'ML deployment', 'MLOps'],
+    bonus: 15,
+  },
+  {
+    keywords: ['ai engineer', 'artificial intelligence engineer'],
+    india: 13,
+    northAmerica: 155,
+    europe: 80,
+    skills: ['Python', 'LLMs', 'RAG', 'PyTorch', 'Model deployment'],
+    bonus: 15,
+  },
+  {
+    keywords: ['llm engineer', 'generative ai engineer'],
+    india: 16,
+    northAmerica: 175,
+    europe: 90,
+    skills: ['LLMs', 'RAG', 'Vector databases', 'Python', 'Model evaluation'],
+    bonus: 18,
+  },
+  {
+    keywords: ['data scientist', 'data science'],
+    india: 11,
+    northAmerica: 130,
+    europe: 68,
+    skills: ['Python', 'SQL', 'Statistics', 'Machine Learning', 'Experimentation'],
+    bonus: 12,
+  },
+  {
+    keywords: ['data engineer'],
+    india: 10,
+    northAmerica: 125,
+    europe: 65,
+    skills: ['SQL', 'Python', 'Spark', 'Airflow', 'Data pipelines'],
+    bonus: 12,
+  },
+  {
+    keywords: ['data analyst', 'business intelligence analyst', 'bi analyst'],
+    india: 6,
+    northAmerica: 80,
+    europe: 45,
+    skills: ['SQL', 'Excel', 'Power BI', 'Tableau', 'Statistics'],
+    bonus: 8,
+  },
+  {
+    keywords: ['business analyst'],
+    india: 7,
+    northAmerica: 90,
+    europe: 48,
+    skills: ['SQL', 'Excel', 'Requirements analysis', 'Power BI', 'Communication'],
+    bonus: 8,
+  },
+  {
+    keywords: ['frontend developer', 'front end developer', 'ui developer'],
+    india: 7,
+    northAmerica: 105,
+    europe: 55,
+    skills: ['JavaScript', 'TypeScript', 'React', 'Accessibility', 'Performance'],
+    bonus: 8,
+  },
+  {
+    keywords: ['backend developer', 'back end developer'],
+    india: 9,
+    northAmerica: 125,
+    europe: 65,
+    skills: ['APIs', 'SQL', 'System design', 'Caching', 'Security'],
+    bonus: 10,
+  },
+  {
+    keywords: ['full stack developer', 'full-stack developer'],
+    india: 9,
+    northAmerica: 120,
+    europe: 62,
+    skills: ['React', 'Node.js', 'TypeScript', 'SQL', 'API design'],
+    bonus: 10,
+  },
+  {
+    keywords: ['software architect', 'solution architect'],
+    india: 24,
+    northAmerica: 190,
+    europe: 100,
+    skills: ['System design', 'Cloud architecture', 'Security', 'Distributed systems'],
+    bonus: 20,
+  },
+  {
+    keywords: ['software engineer', 'software developer'],
+    india: 8,
+    northAmerica: 120,
+    europe: 62,
+    skills: ['Data structures', 'Algorithms', 'Testing', 'System design', 'Git'],
+    bonus: 10,
+  },
+  {
+    keywords: ['devops engineer', 'devops'],
+    india: 10,
+    northAmerica: 125,
+    europe: 65,
+    skills: ['Linux', 'Docker', 'Kubernetes', 'CI/CD', 'Terraform'],
+    bonus: 12,
+  },
+  {
+    keywords: ['site reliability engineer', 'sre'],
+    india: 14,
+    northAmerica: 155,
+    europe: 80,
+    skills: ['Linux', 'Observability', 'Kubernetes', 'Incident response', 'Automation'],
+    bonus: 15,
+  },
+  {
+    keywords: ['cloud engineer'],
+    india: 9,
+    northAmerica: 125,
+    europe: 65,
+    skills: ['AWS', 'Azure', 'Networking', 'Linux', 'Infrastructure as Code'],
+    bonus: 10,
+  },
+  {
+    keywords: ['cybersecurity analyst', 'security analyst'],
+    india: 8,
+    northAmerica: 105,
+    europe: 55,
+    skills: ['Security monitoring', 'SIEM', 'Networking', 'Incident response'],
+    bonus: 10,
+  },
+  {
+    keywords: ['penetration tester', 'security engineer', 'cybersecurity engineer'],
+    india: 12,
+    northAmerica: 140,
+    europe: 72,
+    skills: ['Penetration testing', 'Security architecture', 'Python', 'Cloud security'],
+    bonus: 12,
+  },
+  {
+    keywords: ['qa automation engineer', 'test automation engineer'],
+    india: 7,
+    northAmerica: 100,
+    europe: 52,
+    skills: ['Playwright', 'Selenium', 'API testing', 'CI/CD', 'Test design'],
+    bonus: 8,
+  },
+  {
+    keywords: ['qa engineer', 'quality assurance engineer', 'software tester'],
+    india: 5,
+    northAmerica: 82,
+    europe: 43,
+    skills: ['Test design', 'Bug reporting', 'API testing', 'Regression testing'],
+    bonus: 6,
+  },
+  {
+    keywords: ['product manager'],
+    india: 18,
+    northAmerica: 150,
+    europe: 78,
+    skills: ['Product strategy', 'Analytics', 'Roadmapping', 'User research'],
+    bonus: 15,
+  },
+  {
+    keywords: ['project manager'],
+    india: 12,
+    northAmerica: 115,
+    europe: 60,
+    skills: ['Planning', 'Risk management', 'Stakeholder management', 'Agile'],
+    bonus: 10,
+  },
+  {
+    keywords: ['ux designer', 'ui designer', 'product designer'],
+    india: 8,
+    northAmerica: 110,
+    europe: 58,
+    skills: ['Figma', 'Prototyping', 'User research', 'Accessibility'],
+    bonus: 8,
+  },
+  {
+    keywords: ['hr manager', 'human resources manager'],
+    india: 10,
+    northAmerica: 105,
+    europe: 55,
+    skills: ['People management', 'HR analytics', 'Employee relations'],
+    bonus: 10,
+  },
+  {
+    keywords: ['recruiter', 'talent acquisition'],
+    india: 6,
+    northAmerica: 75,
+    europe: 40,
+    skills: ['Sourcing', 'Interviewing', 'ATS', 'Candidate experience'],
+    bonus: 8,
+  },
+  {
+    keywords: ['accountant', 'accounting'],
+    india: 5,
+    northAmerica: 65,
+    europe: 38,
+    skills: ['Accounting', 'Excel', 'Financial reporting', 'Compliance'],
+    bonus: 5,
+  },
+  {
+    keywords: ['financial analyst', 'finance analyst'],
+    india: 8,
+    northAmerica: 90,
+    europe: 48,
+    skills: ['Financial modeling', 'Excel', 'Forecasting', 'Financial reporting'],
+    bonus: 8,
+  },
+  {
+    keywords: ['marketing manager', 'digital marketing'],
+    india: 7,
+    northAmerica: 90,
+    europe: 47,
+    skills: ['Analytics', 'SEO', 'Campaign management', 'Marketing automation'],
+    bonus: 8,
+  },
+  {
+    keywords: ['sales manager', 'account executive'],
+    india: 9,
+    northAmerica: 100,
+    europe: 52,
+    skills: ['Negotiation', 'CRM', 'Pipeline management', 'Communication'],
+    bonus: 15,
+  },
+  {
+    keywords: ['teacher', 'school teacher'],
+    india: 4,
+    northAmerica: 55,
+    europe: 35,
+    skills: ['Lesson planning', 'Communication', 'Assessment', 'Classroom management'],
+    bonus: 3,
+  },
+  {
+    keywords: ['civil engineer'],
+    india: 5,
+    northAmerica: 85,
+    europe: 45,
+    skills: ['AutoCAD', 'Project planning', 'Structural analysis', 'Safety'],
+    bonus: 6,
+  },
+  {
+    keywords: ['mechanical engineer'],
+    india: 5,
+    northAmerica: 85,
+    europe: 45,
+    skills: ['CAD', 'Mechanical design', 'Manufacturing', 'Testing'],
+    bonus: 6,
+  },
+  {
+    keywords: ['electrical engineer', 'electronics engineer'],
+    india: 5,
+    northAmerica: 90,
+    europe: 47,
+    skills: ['Circuit design', 'Testing', 'Embedded systems', 'Electronics'],
+    bonus: 6,
+  },
+];
 
-  const handleCalculate = async (customRole?: string) => {
-    const roleToUse = customRole || role;
-    if (!roleToUse.trim()) return;
+function normalizeSalaryText(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+.#\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-    setLoading(true);
-    try {
-      const res = await safeEstimateSalary(roleToUse, experience, location);
-      setData(res);
-    } catch (err) {
-      console.error('Calculation error:', err);
-    } finally {
-      setLoading(false);
-    }
+function findSalaryProfile(role: string): SalaryRoleProfile | undefined {
+  const normalizedRole = normalizeSalaryText(role);
+
+  // Prefer the most specific matching title.
+  return [...SALARY_ROLE_PROFILES]
+    .sort((a, b) => {
+      const aLength = Math.max(...a.keywords.map(k => k.length));
+      const bLength = Math.max(...b.keywords.map(k => k.length));
+      return bLength - aLength;
+    })
+    .find(profile =>
+      profile.keywords.some(keyword => {
+        const normalizedKeyword = normalizeSalaryText(keyword);
+        return normalizedRole === normalizedKeyword ||
+          normalizedRole.includes(normalizedKeyword);
+      })
+    );
+}
+
+function getExperienceMultiplier(experience: string): number {
+  const value = normalizeSalaryText(experience);
+
+  if (
+    value.includes('fresher') ||
+    value.includes('entry') ||
+    value.includes('intern') ||
+    value.includes('0-1') ||
+    value.includes('0 1')
+  ) return 0.72;
+
+  if (
+    value.includes('mid') ||
+    value.includes('2-5') ||
+    value.includes('2 5')
+  ) return 1;
+
+  if (
+    value.includes('senior') ||
+    value.includes('5-8') ||
+    value.includes('5 8')
+  ) return 1.55;
+
+  if (
+    value.includes('lead') ||
+    value.includes('principal') ||
+    value.includes('8+') ||
+    value.includes('8 plus') ||
+    value.includes('director')
+  ) return 2.15;
+
+  return 1;
+}
+
+export function estimateSalaryClientSide(
+  role = 'Software Developer',
+  experience = 'Mid-Level (2-5 yrs)',
+  location = 'India',
+  skills: string[] = []
+): SalaryEstimateResult {
+  const safeRole = String(role || '').trim() || 'Software Developer';
+  const safeExperience = String(experience || '').trim() || 'Mid-Level (2-5 yrs)';
+  const safeLocation = String(location || '').trim() || 'India';
+  const normalizedLocation = normalizeSalaryText(safeLocation);
+
+  const profile = findSalaryProfile(safeRole);
+
+  // Unknown titles use a clearly labeled broad software/general benchmark,
+  // rather than pretending the role has a verified exact salary.
+  const fallbackProfile: SalaryRoleProfile = {
+    keywords: [],
+    india: 6,
+    northAmerica: 95,
+    europe: 48,
+    skills: ['Communication', 'Problem solving', 'Role-specific experience'],
+    bonus: 8,
   };
 
-  // Run automatically on initial load
-  useEffect(() => {
-    handleCalculate();
-  }, [experience, location]);
+  const selectedProfile = profile || fallbackProfile;
+  const experienceMultiplier = getExperienceMultiplier(safeExperience);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleCalculate();
-    }
-  };
+  const skillNames = Array.isArray(skills)
+    ? skills.map(s => String(s).toLowerCase())
+    : [];
 
-  const handleCopyScript = () => {
-    if (!data) return;
-    const text = `Thank you for extending this offer. Based on current verified market rates for a ${data.experience} ${data.role} in ${data.location} and the concrete business metrics I delivered in my previous projects, I am targeting a base of ${data.currency_symbol} ${data.median_salary} ${data.currency_code} with performance incentives. Could we explore aligning closer to this benchmark?`;
-    navigator.clipboard.writeText(text);
-    setCopiedScript(true);
-    setTimeout(() => setCopiedScript(false), 2500);
-  };
-
-  return (
-    <div className="space-y-6 max-w-5xl selection:bg-blue-600 selection:text-white">
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-2xs relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-          <DollarSign className="w-3.5 h-3.5 text-amber-600" />
-          <span>COMPENSATION BENCHMARKING</span>
-          <span>·</span>
-          <span className="text-amber-700 font-bold">TOTAL REWARDS ENGINE</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
-          Salary Benchmarks &amp; Market Intelligence
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl leading-relaxed">
-          Search real-time compensation distributions, in-hand monthly net estimates, variable bonus bands, and tech stack premiums based on live employer market datasets.
-        </p>
-      </div>
-
-      {/* Control Filters with Prominent Calculate / Search Button */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-2xs space-y-5">
-        {/* Step 1: Role Search / Selection */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold text-slate-900">
-            Target Job Title / Domain Specialization
-          </label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
-              <input
-                type="text"
-                value={role}
-                onChange={e => setRole(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type any role: e.g. Full Stack Developer, AI Engineer, Cloud Architect..."
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
-              />
-            </div>
-            <button
-              onClick={() => handleCalculate()}
-              disabled={loading || !role.trim()}
-              className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center gap-2 shrink-0"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Computing...</span>
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4 text-amber-400" />
-                  <span>Calculate &amp; Search Salary</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Quick preset chips */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[11px] text-slate-400 font-medium">Popular:</span>
-            {popularRoles.map((r, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => {
-                  setRole(r);
-                  handleCalculate(r);
-                }}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition ${
-                  role === r
-                    ? 'bg-amber-50 border-amber-300 text-amber-900 font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 2: Seniority and Geography Selectors */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-              <span>Seniority &amp; Experience Curve</span>
-            </label>
-            <select
-              value={experience}
-              onChange={e => setExperience(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-            >
-              <option value="Fresher (0-1 yrs)">Fresher / Associate (0–1 yrs)</option>
-              <option value="Mid-Level (2-5 yrs)">Mid-Level Professional (2–5 yrs)</option>
-              <option value="Senior (5-8 yrs)">Senior Specialist / Tech Lead (5–8 yrs)</option>
-              <option value="Lead / Principal (8+ yrs)">Principal / Staff / Architect (8+ yrs)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-slate-500" />
-              <span>Geography &amp; Compensation Market</span>
-            </label>
-            <select
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              className="w-full p-3 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-            >
-              <option value="India">India (Lakhs INR / LPA)</option>
-              <option value="North America">North America ($ USD / Annual)</option>
-              <option value="Global Remote">Global Remote ($ USD Equiv)</option>
-              <option value="Europe">Europe (€ EUR / Annual)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Output Presentation: Guaranteed Render */}
-      {data && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
-          {/* Top Headline Card */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100">
-            <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>Estimated Market Compensation Range</span>
-              </div>
-              <div className="text-3xl sm:text-4xl font-black text-slate-950 font-mono tabular-nums mt-1">
-                {data.currency_symbol} {data.min_salary} — {data.currency_symbol} {data.max_salary} <span className="text-base sm:text-lg font-bold text-slate-400">{data.currency_code}</span>
-              </div>
-              <div className="text-xs text-slate-500 mt-1 font-medium">
-                Benchmark for <span className="text-slate-900 font-bold">{data.role}</span> · <span className="text-slate-900 font-bold">{data.experience}</span> · <span className="text-slate-900 font-bold">{data.location}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-left sm:text-right">
-                <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Median Target Package</div>
-                <div className="text-2xl font-black text-amber-950 font-mono tabular-nums mt-0.5">
-                  {data.currency_symbol} {data.median_salary} {data.currency_code}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-left sm:text-right">
-                <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Estimated Monthly In-Hand</div>
-                <div className="text-2xl font-black text-emerald-950 font-mono tabular-nums mt-0.5">
-                  ~{data.currency_symbol} {data.monthly_in_hand.toLocaleString()} <span className="text-xs font-normal text-emerald-700">/ mo</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Visual Spectrum Bar Graph */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-              <span>Market Range Spectrum (Percentile Curve)</span>
-              <span className="text-amber-800 font-mono">
-                Entry {data.currency_symbol}{data.min_salary} — Top 10% {data.currency_symbol}{data.max_salary}
-              </span>
-            </div>
-
-            <div className="relative pt-2 pb-1">
-              <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-                <div className="w-1/4 bg-blue-300 border-r border-white" title="25th percentile" />
-                <div className="w-1/4 bg-amber-400 border-r border-white" title="50th percentile (Median)" />
-                <div className="w-1/4 bg-emerald-400 border-r border-white" title="75th percentile" />
-                <div className="w-1/4 bg-purple-400" title="90th percentile" />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 font-bold mt-1.5 font-mono">
-                <span>Entry (25%)</span>
-                <span className="text-amber-700 font-black">Median (50%)</span>
-                <span>Upper (75%)</span>
-                <span className="text-purple-700">Top 10%</span>
-              </div>
-            </div>
-
-            {/* 4 Quartile Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs pt-1">
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                <div className="text-slate-400 text-[10px] font-bold uppercase">25th %tile (Entry)</div>
-                <div className="font-mono tabular-nums font-black text-slate-900 mt-1 text-sm">
-                  {data.currency_symbol} {data.quartiles.q25}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{data.currency_code}</div>
-              </div>
-
-              <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-300">
-                <div className="text-amber-800 text-[10px] font-bold uppercase">50th %tile (Median)</div>
-                <div className="font-mono tabular-nums font-black text-amber-950 mt-1 text-sm">
-                  {data.currency_symbol} {data.quartiles.q50}
-                </div>
-                <div className="text-[10px] text-amber-700 mt-0.5">{data.currency_code}</div>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                <div className="text-slate-400 text-[10px] font-bold uppercase">75th %tile (Strong)</div>
-                <div className="font-mono tabular-nums font-black text-slate-900 mt-1 text-sm">
-                  {data.currency_symbol} {data.quartiles.q75}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{data.currency_code}</div>
-              </div>
-
-              <div className="p-3.5 bg-purple-50/70 rounded-2xl border border-purple-200">
-                <div className="text-purple-800 text-[10px] font-bold uppercase">90th %tile (Top Tier)</div>
-                <div className="font-mono tabular-nums font-black text-purple-950 mt-1 text-sm">
-                  {data.currency_symbol} {data.quartiles.q90}
-                </div>
-                <div className="text-[10px] text-purple-700 mt-0.5">{data.currency_code}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Key Rewards Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Annual Variable Bonus</div>
-              <div className="text-sm font-black text-slate-900">{data.bonus_percentage}</div>
-              <p className="text-[11px] text-slate-500">Performance incentive paid annually or semi-annually.</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Equity / ESOP Allocation</div>
-              <div className="text-sm font-black text-slate-900 truncate">{data.equity_grant}</div>
-              <p className="text-[11px] text-slate-500">Vests typically over a standard 4-year schedule with 1-year cliff.</p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hiring Momentum</div>
-              <div className="text-sm font-black text-emerald-700">{data.market_sentiment}</div>
-              <p className="text-[11px] text-slate-500">Based on active quarterly requisitions across tech hubs.</p>
-            </div>
-          </div>
-
-          {/* High-Value Tech Premiums */}
-          <div className="p-5 rounded-2xl bg-blue-50/40 border border-blue-200 space-y-2">
-            <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              <span>Skills That Command +10% to +20% Salary Premium for {data.role}</span>
-            </span>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {data.top_paying_skills.map((sk, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 rounded-xl bg-white border border-blue-200 text-blue-800 text-xs font-mono font-semibold shadow-2xs"
-                >
-                  +{10 + (idx % 3) * 5}% · {sk}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Counter-Offer Negotiation Script Playbook */}
-          <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Ready-to-Use Negotiation Script</span>
-              </span>
-              <button
-                onClick={handleCopyScript}
-                className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedScript ? 'Copied Script!' : 'Copy Script'}</span>
-              </button>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed font-mono bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
-              "Thank you for extending this offer. Based on current verified market benchmarks for a {data.experience} {data.role} in {data.location} and the quantifiable business outcomes I delivered in my previous projects, I am targeting a base of {data.currency_symbol}{data.median_salary} {data.currency_code} with performance incentives. Could we explore aligning closer to this benchmark?"
-            </p>
-            <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>Tip: Never apologize when countering. Ground your ask on market rates and measurable past impact.</span>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+  const skillPremium = Math.min(
+    0.18,
+    (skillNames.some(s => /aws|azure|gcp|kubernetes|terraform/.test(s)) ? 0.04 : 0) +
+    (skillNames.some(s => /machine learning|pytorch|tensorflow|llm|generative ai/.test(s)) ? 0.06 : 0) +
+    (skillNames.some(s => /system design|distributed systems|microservices/.test(s)) ? 0.04 : 0) +
+    (skillNames.some(s => /security|data engineering|mlops/.test(s)) ? 0.04 : 0)
   );
-};
+
+  const adjustedBase = (base: number) =>
+    base * experienceMultiplier * (1 + skillPremium);
+
+  const isUSD =
+    /north america|united states|usa|u\.s\.a|canada|usd|united states of america/.test(normalizedLocation);
+
+  const isEUR =
+    /europe|eur|germany|france|netherlands|ireland|spain|italy|portugal|sweden|denmark|finland|belgium/.test(normalizedLocation);
+
+  const isGlobalRemote = /global remote|worldwide remote/.test(normalizedLocation);
+
+  let currencySymbol: string;
+  let currencyCode: string;
+  let minSalary: number;
+  let maxSalary: number;
+  let medianSalary: number;
+  let monthlyInHand: number;
+
+  if (isUSD || isGlobalRemote) {
+    currencySymbol = '$';
+    currencyCode = 'USD / Year';
+    const base = adjustedBase(selectedProfile.northAmerica);
+    minSalary = Math.round(base * 0.78);
+    maxSalary = Math.round(base * 1.28);
+    medianSalary = Math.round(base);
+    monthlyInHand = Math.round((medianSalary * 1000 * 0.68) / 12);
+  } else if (isEUR) {
+    currencySymbol = '€';
+    currencyCode = 'EUR / Year';
+    const base = adjustedBase(selectedProfile.europe);
+    minSalary = Math.round(base * 0.8);
+    maxSalary = Math.round(base * 1.25);
+    medianSalary = Math.round(base);
+    monthlyInHand = Math.round((medianSalary * 1000 * 0.68) / 12);
+  } else {
+    currencySymbol = '₹';
+    currencyCode = 'LPA (INR)';
+    const base = adjustedBase(selectedProfile.india);
+    minSalary = Math.round(base * 0.78 * 10) / 10;
+    maxSalary = Math.round(base * 1.28 * 10) / 10;
+    medianSalary = Math.round(base * 10) / 10;
+    monthlyInHand = Math.round((medianSalary * 100000 * 0.78) / 12);
+  }
+
+  const bonusLow = Math.max(0, selectedProfile.bonus - 3);
+  const bonusHigh = selectedProfile.bonus + 3;
+
+  const roleSkills = selectedProfile.skills;
+
+  const marketSentiment = profile
+    ? 'Indicative role benchmark — live hiring demand not connected'
+    : 'General estimate — no specific role benchmark found';
+
+  const source = profile
+    ? 'CareerLens role benchmark estimates (not live salary data)'
+    : 'CareerLens general fallback estimate (not live salary data)';
+
+  return {
+    role: safeRole,
+    experience: safeExperience,
+    location: safeLocation,
+    currency_symbol: currencySymbol,
+    currency_code: currencyCode,
+    min_salary: minSalary,
+    max_salary: maxSalary,
+    median_salary: medianSalary,
+    monthly_in_hand: monthlyInHand,
+    quartiles: {
+      q25: Math.round(minSalary * 10) / 10,
+      q50: Math.round(medianSalary * 10) / 10,
+      q75: Math.round((minSalary * 0.4 + maxSalary * 0.6) * 10) / 10,
+      q90: Math.round(maxSalary * 10) / 10,
+    },
+    bonus_percentage: `${bonusLow}% - ${bonusHigh}%`,
+    equity_grant:
+      experienceMultiplier >= 1.55
+        ? 'Equity may be offered; varies by employer and level'
+        : 'Equity availability depends on employer and role',
+    market_sentiment: marketSentiment,
+    top_paying_skills: roleSkills,
+    negotiation_tip:
+      'Compare the complete offer: base salary, variable pay, equity, benefits, location, and role scope. Use multiple recent job postings before negotiating.',
+    note:
+      'Planning estimate only. Compensation varies by employer, city, industry, skills, and individual experience. This is not a verified live-market quote.',
+    source,
+  };
+}
+
+export async function safeEstimateSalary(
+  role: string,
+  experience: string,
+  location: string,
+  skills: string[] = []
+): Promise<SalaryEstimateResult> {
+  const requestedRole = String(role || '').trim() || 'Software Developer';
+  const requestedExperience =
+    String(experience || '').trim() || 'Mid-Level (2-5 yrs)';
+  const requestedLocation = String(location || '').trim() || 'India';
+
+  try {
+    const response = await fetch('/api/salary/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: requestedRole,
+        experience: requestedExperience,
+        location: requestedLocation,
+        skills,
+      }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!response.ok) {
+      throw new Error(`Salary service returned HTTP ${response.status}`);
+    }
+
+    if (!contentType.includes('application/json')) {
+      throw new Error('Salary service did not return JSON');
+    }
+
+    const result = await response.json() as SalaryEstimateResult;
+
+    // Reject stale or mismatched results so the UI cannot display one role's
+    // response after the user has searched for another role.
+    if (
+      !result ||
+      typeof result.min_salary !== 'number' ||
+      typeof result.max_salary !== 'number' ||
+      typeof result.median_salary !== 'number'
+    ) {
+      throw new Error('Salary service returned an invalid result');
+    }
+
+    return {
+      ...result,
+      role: requestedRole,
+      experience: requestedExperience,
+      location: requestedLocation,
+    };
+  } catch {
+    // The backend may be unavailable on static deployments.
+    // Return an explicitly labeled estimate instead of claiming live data.
+    return estimateSalaryClientSide(
+      requestedRole,
+      requestedExperience,
+      requestedLocation,
+      skills
+    );
+  }
+}
