@@ -48,6 +48,8 @@ export interface AssessmentResult {
   correct_count: number;
   wrong_count: number;
   unanswered_count: number;
+  score_out_of_100?: number;
+  section_breakdown?: Record<string, { total: number; correct: number; percentage: number }>;
 }
 
 export interface Candidate {
@@ -95,4 +97,6 @@ export interface InterviewScore {
   answered: number;
   strengths: string[];
   improvements: string[];
+  confidence_index?: number;
+  readiness_level?: string;
 }

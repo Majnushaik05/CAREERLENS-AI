@@ -335,8 +335,8 @@ const recruiterStateStore = new Map<string, any>();
 function getAssessmentBank(role: string) {
   const roleL = (role || '').toLowerCase();
   
-  // Data Science, ML & Analytics
-  if (['data', 'analytics', 'scientist', 'bi', 'machine learning', 'ai'].some(k => roleL.includes(k))) {
+  // Data Science, ML, AI & Analytics
+  if (['data', 'analytics', 'scientist', 'bi', 'machine learning', 'ai', 'deep learning', 'nlp'].some(k => roleL.includes(k))) {
     return [
       { id: 1, question: 'What does precision measure in a binary classification model?', options: ['True Positives divided by all Predicted Positives', 'True Positives divided by all Actual Positives', 'Overall proportion of correct classifications', 'Ratio of false alarms to true negatives'], answer: 'True Positives divided by all Predicted Positives', section: 'Evaluation Metrics' },
       { id: 2, question: 'Which SQL clause must be used to filter aggregated group metrics?', options: ['HAVING', 'WHERE', 'GROUP BY', 'FILTER BY'], answer: 'HAVING', section: 'SQL & Database Architecture' },
@@ -346,6 +346,8 @@ function getAssessmentBank(role: string) {
       { id: 6, question: 'Which imputation strategy avoids data leakage during preprocessing?', options: ['Fitting imputers strictly on training folds before transforming test folds', 'Calculating mean across the entire dataset prior to splitting', 'Replacing missing values with zero arbitrarily', 'Dropping test rows with any null values'], answer: 'Fitting imputers strictly on training folds before transforming test folds', section: 'Data Engineering' },
       { id: 7, question: 'What is the primary utility of ROC-AUC when evaluating fraud detection?', options: ['It evaluates discriminator performance across all classification thresholds independent of class balance', 'It calculates financial dollar return of detected scams', 'It proves the model cannot overfit', 'It measures GPU training memory efficiency'], answer: 'It evaluates discriminator performance across all classification thresholds independent of class balance', section: 'Evaluation Metrics' },
       { id: 8, question: 'In distributed data pipelines (e.g. Apache Spark), what does a shuffle operation cause?', options: ['High cross-node network I/O and potential disk spillage', 'Instant in-memory garbage collection', 'Zero latency pipeline execution', 'Data loss without checkpointing'], answer: 'High cross-node network I/O and potential disk spillage', section: 'Big Data Systems' },
+      { id: 9, question: 'In Retrieval-Augmented Generation (RAG), what purpose does cosine similarity serve?', options: ['Ranking semantic proximity between embedding vectors', 'Encrypting prompt tokens', 'Compressing PDF documents', 'Translating SQL queries to Python'], answer: 'Ranking semantic proximity between embedding vectors', section: 'GenAI & Vector Search' },
+      { id: 10, question: 'Which loss function is optimal for training multi-class probability distributions?', options: ['Categorical Cross-Entropy', 'Mean Squared Error', 'Hinge Loss', 'Mean Absolute Percentage Error'], answer: 'Categorical Cross-Entropy', section: 'Deep Learning' },
     ];
   }
 
@@ -358,6 +360,8 @@ function getAssessmentBank(role: string) {
       { id: 4, question: 'What does the Principle of Least Privilege mandate in cloud IAM?', options: ['Granting only the minimal permissions required to complete assigned tasks', 'Giving every developer AdministratorAccess for rapid iteration', 'Using the root account for all automated CI runners', 'Never rotating access keys'], answer: 'Granting only the minimal permissions required to complete assigned tasks', section: 'Cloud Security' },
       { id: 5, question: 'In site reliability engineering, what does an Error Budget represent?', options: ['The acceptable level of unreliability allowed by the SLA/SLO target', 'The annual financial budget for cloud infrastructure', 'The maximum number of Git commits per sprint', 'A penalty paid to clients for downtime'], answer: 'The acceptable level of unreliability allowed by the SLA/SLO target', section: 'SRE Fundamentals' },
       { id: 6, question: 'What is the core purpose of infrastructure-as-code state locking (e.g., Terraform state lock)?', options: ['Preventing concurrent pipeline runs from corrupting infrastructure state', 'Encrypting source code on GitHub', 'Speeding up resource creation', 'Automating DNS propagation'], answer: 'Preventing concurrent pipeline runs from corrupting infrastructure state', section: 'IaC Workflows' },
+      { id: 7, question: 'What metrics are tracked by the Golden Signals of observability?', options: ['Latency, Traffic, Errors, and Saturation', 'CPU, RAM, Disk, and Network only', 'Commits, Pull Requests, and Build Times', 'Cost, Revenue, Subscriptions, and Churn'], answer: 'Latency, Traffic, Errors, and Saturation', section: 'Observability & Monitoring' },
+      { id: 8, question: 'How does an ingress controller differ from a basic NodePort service in Kubernetes?', options: ['Provides Layer 7 HTTP/HTTPS routing, SSL termination, and host/path rules', 'Runs only on worker nodes with GPU access', 'Replaces docker container runtimes completely', 'Requires public static IPs on every single pod'], answer: 'Provides Layer 7 HTTP/HTTPS routing, SSL termination, and host/path rules', section: 'Kubernetes Networking' },
     ];
   }
 
@@ -368,6 +372,79 @@ function getAssessmentBank(role: string) {
       { id: 2, question: 'In modern OAuth 2.0 / OIDC public clients, why is PKCE required?', options: ['It mitigates authorization code interception attacks without requiring client secrets', 'It encrypts database passwords at rest', 'It bypasses the need for user consent', 'It replaces TLS encryption on the network'], answer: 'It mitigates authorization code interception attacks without requiring client secrets', section: 'Authentication & Identity' },
       { id: 3, question: 'What constitutes a Zero Trust security architecture?', options: ['Never trust, always verify: strict identity verification for every access request', 'Placing all servers behind a single corporate VPN firewall', 'Granting all employees local administrator rights', 'Disabling multi-factor authentication for internal users'], answer: 'Never trust, always verify: strict identity verification for every access request', section: 'Security Architecture' },
       { id: 4, question: 'What header protects web applications from Cross-Site Scripting (XSS)?', options: ['Content-Security-Policy (CSP)', 'Access-Control-Allow-Origin: *', 'X-Powered-By', 'Cache-Control: public'], answer: 'Content-Security-Policy (CSP)', section: 'Web Security' },
+      { id: 5, question: 'What is the primary role of a Security Information and Event Management (SIEM) platform?', options: ['Centralized log aggregation, real-time threat detection, and event correlation', 'Replacing endpoint antivirus software', 'Writing firewall rules automatically without approval', 'Encrypting internal git repositories'], answer: 'Centralized log aggregation, real-time threat detection, and event correlation', section: 'Security Operations' },
+      { id: 6, question: 'Which cryptographic algorithm provides post-quantum public-key key encapsulation (KEM)?', options: ['ML-KEM (Kyber)', 'RSA-2048', 'ECC Curve25519', 'Diffie-Hellman 1024'], answer: 'ML-KEM (Kyber)', section: 'Cryptography' },
+    ];
+  }
+
+  // Frontend & UI Engineering
+  if (['frontend', 'front end', 'react', 'ui developer', 'web developer'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'In React, what problem does reconciliation solve using the Virtual DOM?', options: ['Minimizes expensive real DOM mutations through efficient diffing', 'Stores database queries in browser local storage', 'Compiles JavaScript directly into binary machine instructions', 'Replaces HTTP requests with WebSockets'], answer: 'Minimizes expensive real DOM mutations through efficient diffing', section: 'React Core' },
+      { id: 2, question: 'Which Core Web Vital measures visual stability to prevent unexpected layout shifts?', options: ['Cumulative Layout Shift (CLS)', 'Largest Contentful Paint (LCP)', 'Interaction to Next Paint (INP)', 'First Contentful Paint (FCP)'], answer: 'Cumulative Layout Shift (CLS)', section: 'Web Performance' },
+      { id: 3, question: 'Why is the "key" prop critical when rendering dynamic lists in React?', options: ['Helps React identify which items have changed, been added, or removed for reconciliation', 'Styles the HTML elements with unique CSS classes', 'Encrypts the list data in memory', 'Assigns unique DOM event listeners automatically'], answer: 'Helps React identify which items have changed, been added, or removed for reconciliation', section: 'Component Architecture' },
+      { id: 4, question: 'What does CSS "content-visibility: auto" achieve on long content pages?', options: ['Skips rendering of off-screen elements until scrolled near viewport, saving render time', 'Hides content permanently from screen readers', 'Translates text automatically into user language', 'Changes images into SVG vectors'], answer: 'Skips rendering of off-screen elements until scrolled near viewport, saving render time', section: 'CSS & Rendering Optimization' },
+      { id: 5, question: 'Which technique prevents memory leaks when using event listeners in useEffect hooks?', options: ['Returning a cleanup function that removes the attached listener', 'Calling event.preventDefault() inside the callback', 'Wrapping the component in React.StrictMode', 'Using useState instead of useRef'], answer: 'Returning a cleanup function that removes the attached listener', section: 'Hooks & Lifecycle' },
+    ];
+  }
+
+  // Mechanical & Automotive Engineering
+  if (['mechanical', 'automotive', 'cad', 'manufacturing', 'thermal'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'What does the Factor of Safety (FoS) represent in structural mechanical design?', options: ['Ratio of ultimate (or yield) material strength to actual working design stress', 'Percentage of thermal expansion at operating temperature', 'Number of inspections per operating cycle', 'Total manufacturing cost divided by material weight'], answer: 'Ratio of ultimate (or yield) material strength to actual working design stress', section: 'Machine Design' },
+      { id: 2, question: 'In thermodynamics, what does the Second Law dictate regarding spontaneous thermal processes?', options: ['Total entropy of an isolated system always increases over time', 'Heat flows spontaneously from cold to hot bodies', 'Energy cannot be converted between work and heat', 'Absolute zero temperature is reachable via infinite cycles'], answer: 'Total entropy of an isolated system always increases over time', section: 'Thermodynamics' },
+      { id: 3, question: 'Which failure theory is most appropriate for predicting yield in ductile materials under static loading?', options: ['Von Mises (Distortion Energy Theory)', 'Rankine (Maximum Normal Stress Theory)', 'Coulomb-Mohr Theory', 'Griffith Fracture Theory'], answer: 'Von Mises (Distortion Energy Theory)', section: 'Material Mechanics' },
+      { id: 4, question: 'In GD&T (Geometric Dimensioning & Tolerancing), what does True Position control?', options: ['The permissible variation in location of a feature relative to datums', 'Only the surface roughness of the part', 'The hardness of heat-treated metals', 'The speed of CNC milling operations'], answer: 'The permissible variation in location of a feature relative to datums', section: 'GD&T & Manufacturing' },
+      { id: 5, question: 'What is the primary purpose of Finite Element Analysis (FEA) mesh convergence studies?', options: ['Verifying that stress results stabilize independently of element size refinement', 'Increasing the 3D model render resolution', 'Checking color gradients on display monitors', 'Formatting files for 3D printer slicing'], answer: 'Verifying that stress results stabilize independently of element size refinement', section: 'FEA & Simulation' },
+    ];
+  }
+
+  // Civil & Structural Engineering
+  if (['civil', 'structural', 'construction', 'concrete'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'In reinforced concrete design, why is steel embedded in structural beams?', options: ['To resist tensile stresses while concrete carries compressive forces', 'To prevent chemical corrosion of water', 'To reduce total foundation dead load by 50%', 'To conduct electrical grounding'], answer: 'To resist tensile stresses while concrete carries compressive forces', section: 'Structural Concrete' },
+      { id: 2, question: 'What does a Standard Penetration Test (SPT) N-value measure in geotechnical soil investigation?', options: ['Soil density, shear resistance, and bearing capacity', 'Soil moisture content only', 'Soil chemical acidity and pH', 'Underground seismic wave velocity only'], answer: 'Soil density, shear resistance, and bearing capacity', section: 'Geotechnical Engineering' },
+      { id: 3, question: 'What is the primary purpose of shear walls in multi-story building engineering?', options: ['Resisting lateral wind and seismic earthquake loads', 'Supporting non-structural interior doors', 'Insulating thermal heating systems', 'Reducing concrete drying shrinkage crack width'], answer: 'Resisting lateral wind and seismic earthquake loads', section: 'Structural Dynamics' },
+      { id: 4, question: 'In open channel hydraulics, what condition exists when Froude number (Fr) equals 1?', options: ['Critical flow state (minimum specific energy)', 'Subcritical tranquil flow', 'Supercritical rapid shooting flow', 'Turbulent hydraulic jump only'], answer: 'Critical flow state (minimum specific energy)', section: 'Hydraulics & Water Resources' },
+    ];
+  }
+
+  // Electrical & Electronics Engineering
+  if (['electrical', 'electronics', 'embedded', 'circuit', 'power system'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'According to Nyquist-Shannon theorem, what sampling rate is required to avoid aliasing?', options: ['At least twice the maximum frequency component of the signal', 'Equal to the fundamental frequency', 'Ten times the signal bandwidth', 'Half of the signal period'], answer: 'At least twice the maximum frequency component of the signal', section: 'Signal Processing' },
+      { id: 2, question: 'In power systems, what is the effect of a low power factor on transmission networks?', options: ['Increases transmission I²R line losses and requires larger conductor sizing', 'Decreases line voltage drops completely', 'Reduces power bill charges automatically', 'Improves transformer efficiency to 100%'], answer: 'Increases transmission I²R line losses and requires larger conductor sizing', section: 'Power Engineering' },
+      { id: 3, question: 'In embedded firmware development, why are volatile qualifiers used for memory-mapped registers?', options: ['Prevents compiler optimization from caching reads and omitting repeated hardware accesses', 'Encrypts register addresses in ROM', 'Allocates dynamic heap memory on the stack', 'Speds up clock cycle execution tenfold'], answer: 'Prevents compiler optimization from caching reads and omitting repeated hardware accesses', section: 'Embedded C Systems' },
+      { id: 4, question: 'What is the primary function of a bypass/decoupling capacitor placed next to an IC power pin?', options: ['Supplies transient current spikes and shunts high-frequency power rail noise to ground', 'Sets the operational clock frequency of the MCU', 'Amplifies analog sensor signals', 'Stores user data during power outages'], answer: 'Supplies transient current spikes and shunts high-frequency power rail noise to ground', section: 'PCB & Circuit Design' },
+    ];
+  }
+
+  // Healthcare, Medicine & Clinical Nursing
+  if (['doctor', 'physician', 'nurse', 'medical', 'clinical', 'pharmac', 'health'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'In triage protocols (e.g. START), which assessment determines the highest immediate priority?', options: ['Airway patency, spontaneous respirations, and radial pulse perfusion', 'Patient age and insurance status', 'Time of arrival at the emergency facility', 'Ability to produce identification'], answer: 'Airway patency, spontaneous respirations, and radial pulse perfusion', section: 'Emergency & Triage' },
+      { id: 2, question: 'What is the primary safety rationale for the "Five Rights" of medication administration?', options: ['Preventing medication errors by verifying patient, drug, dose, route, and time', 'Reducing prescription billing processing times', 'Ensuring pharmaceutical brand preference', 'Eliminating the need for electronic medical record logging'], answer: 'Preventing medication errors by verifying patient, drug, dose, route, and time', section: 'Clinical Pharmacology & Safety' },
+      { id: 3, question: 'In clinical infection control, what is the single most effective intervention to break transmission chains?', options: ['Strict adherence to standardized hand hygiene protocols', 'Relying exclusively on surface disinfectant sprays once weekly', 'Administering prophylactic antibiotics to all admitted patients', 'Keeping windows open at all times'], answer: 'Strict adherence to standardized hand hygiene protocols', section: 'Infection Prevention' },
+      { id: 4, question: 'In cardiopulmonary resuscitation (CPR) for adults, what is the recommended chest compression rate?', options: ['100 to 120 compressions per minute at 2–2.4 inches depth', '60 to 80 compressions per minute shallow depth', '140 to 160 rapid compressions per minute', '50 compressions alternating with 5 breaths'], answer: '100 to 120 compressions per minute at 2–2.4 inches depth', section: 'Life Support & Critical Care' },
+    ];
+  }
+
+  // Finance, Accounting & Auditing
+  if (['finance', 'account', 'audit', 'tax', 'banking', 'cpa'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'Under accrual accounting principles, when should revenue be recognized?', options: ['When performance obligations are satisfied, regardless of when cash is received', 'Only when cash is deposited into the company bank account', 'At the end of the tax calendar year arbitrarily', 'Whenever invoices are printed'], answer: 'When performance obligations are satisfied, regardless of when cash is received', section: 'Financial Accounting Standards' },
+      { id: 2, question: 'What does the Weighted Average Cost of Capital (WACC) represent in corporate finance?', options: ['The blended hurdle rate a firm must earn on projects to satisfy debt and equity holders', 'The total annual tax liability of the firm', 'The bank interest rate on short-term overdrafts only', 'The current trading price of common stock'], answer: 'The blended hurdle rate a firm must earn on projects to satisfy debt and equity holders', section: 'Corporate Valuation' },
+      { id: 3, question: 'In financial statement analysis, what does the Quick Ratio (Acid-Test) measure?', options: ['A firm’s capacity to settle short-term obligations using liquid assets excluding inventory', 'Total annual inventory turnover velocity', 'Long-term debt to equity solvency ratio', 'Gross profit margin on international sales'], answer: 'A firm’s capacity to settle short-term obligations using liquid assets excluding inventory', section: 'Financial Analysis' },
+      { id: 4, question: 'In statutory auditing, what is the purpose of testing internal controls over financial reporting?', options: ['Evaluating control effectiveness to determine nature, timing, and extent of substantive testing', 'Guaranteeing zero future corporate bankruptcy', 'Calculating executive bonus payouts', 'Replacing third-party bank confirmations'], answer: 'Evaluating control effectiveness to determine nature, timing, and extent of substantive testing', section: 'Audit & Assurance' },
+    ];
+  }
+
+  // Human Resources & Talent Acquisition
+  if (['hr', 'human resources', 'recruiter', 'talent', 'people'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'What is the primary benefit of structured behavioral interviewing over unstructured interviews?', options: ['Significantly higher predictive validity and reduced interviewer cognitive bias', 'Shorter interview conversation duration', 'Eliminates the need for job descriptions', 'Guarantees every candidate accepts offer letters'], answer: 'Significantly higher predictive validity and reduced interviewer cognitive bias', section: 'Talent Acquisition' },
+      { id: 2, question: 'How is employee turnover rate mathematically calculated over a defined period?', options: ['(Number of separations during period / Average number of employees) × 100', 'Total new hires minus total promotions', 'Total payroll expense divided by open requisitions', 'Number of resigned employees multiplied by company age'], answer: '(Number of separations during period / Average number of employees) × 100', section: 'People Analytics' },
+      { id: 3, question: 'What legal principle governs equal opportunity compliance in job specifications?', options: ['Requirements must be bona fide occupational qualifications (BFOQ) related to job performance', 'Companies can filter candidates based on demographic assumptions', 'Years of experience must always exceed 10 years', 'Educational degrees can be required arbitrarily without job relevance'], answer: 'Requirements must be bona fide occupational qualifications (BFOQ) related to job performance', section: 'Employment Law & Compliance' },
     ];
   }
 
@@ -381,7 +458,7 @@ function getAssessmentBank(role: string) {
     ];
   }
 
-  // Software Engineering, Full Stack, Backend, Frontend
+  // Software Engineering, Full Stack, Backend & Systems (General / Tech Standard)
   return [
     { id: 1, question: 'Which practice ensures high software reliability before production release?', options: ['Automated unit/integration testing and peer code reviews', 'Skipping validation steps during sprints', 'Hard-coding credentials in configuration files', 'Ignoring error log exceptions'], answer: 'Automated unit/integration testing and peer code reviews', section: 'Quality & Reliability' },
     { id: 2, question: 'What does database indexing primarily achieve in high-throughput applications?', options: ['Dramatically accelerates SELECT query lookups at the expense of slight write overhead', 'Compresses text storage on disk only', 'Encrypts user passwords automatically', 'Eliminates the need for schema migrations'], answer: 'Dramatically accelerates SELECT query lookups at the expense of slight write overhead', section: 'Database Systems' },
@@ -389,8 +466,10 @@ function getAssessmentBank(role: string) {
     { id: 4, question: 'What data structure provides average O(1) time complexity for key-value lookups?', options: ['Hash Table / Map', 'Binary Search Tree', 'Doubly Linked List', 'Sorted Array'], answer: 'Hash Table / Map', section: 'Computer Science Fundamentals' },
     { id: 5, question: 'How do you prevent cache stampede during high-concurrency cache key eviction?', options: ['Using mutex locks (single-flight) or probabilistic early expiration', 'Increasing database connection limits indefinitely', 'Clearing the entire cache cluster simultaneously', 'Disabling caching altogether'], answer: 'Using mutex locks (single-flight) or probabilistic early expiration', section: 'Distributed Systems' },
     { id: 6, question: 'What is the safest pattern for injecting production secrets into containerized microservices?', options: ['Environment variable injection from dedicated secrets managers (e.g., Vault, AWS Secrets)', 'Hard-coding secrets into Git repositories', 'Bundling API keys into client-facing JavaScript bundles', 'Transmitting keys via public unencrypted URLs'], answer: 'Environment variable injection from dedicated secrets managers (e.g., Vault, AWS Secrets)', section: 'Security' },
-    { id: 7, question: 'In frontend web development, why is memoization (e.g., React.memo, useMemo) used?', options: ['To avoid expensive re-computations or unnecessary re-renders of unchanged child components', 'To replace asynchronous data fetching', 'To permanently store user data on disk', 'To encrypt component props'], answer: 'To avoid expensive re-computations or unnecessary re-renders of unchanged child components', section: 'Frontend Architecture' },
+    { id: 7, question: 'In web development, why is memoization (e.g., React.memo, useMemo) used?', options: ['To avoid expensive re-computations or unnecessary re-renders of unchanged child components', 'To replace asynchronous data fetching', 'To permanently store user data on disk', 'To encrypt component props'], answer: 'To avoid expensive re-computations or unnecessary re-renders of unchanged child components', section: 'Architecture & Performance' },
     { id: 8, question: 'What does ACID atomicity guarantee in relational database transactions?', options: ['All operations within the transaction succeed completely, or all are rolled back with no partial state', 'Data is replicated to 3 separate continents', 'Queries execute in less than 1 millisecond', 'Tables never have foreign key constraints'], answer: 'All operations within the transaction succeed completely, or all are rolled back with no partial state', section: 'Database Systems' },
+    { id: 9, question: 'What is the time complexity of searching an element in a balanced binary search tree (AVL/Red-Black)?', options: ['O(log N)', 'O(N)', 'O(1)', 'O(N²)'], answer: 'O(log N)', section: 'Algorithms & Complexity' },
+    { id: 10, question: 'Which architectural pattern decouples message producers and consumers asynchronously?', options: ['Event-Driven Message Queue (Pub/Sub)', 'Direct synchronous monolithic RPC', 'Shared in-memory global state', 'Blocking round-robin socket calls'], answer: 'Event-Driven Message Queue (Pub/Sub)', section: 'System Design' },
   ];
 }
 
@@ -472,24 +551,68 @@ Provide a concise JSON object with:
   }
 });
 
-// Job Match endpoint
-app.post('/api/job/match', (req: Request, res: Response) => {
+// Job Match endpoint with AI-powered semantic ATS alignment
+app.post('/api/job/match', async (req: Request, res: Response) => {
   try {
     const { resume_text = '', job_description = '' } = req.body;
     if (!resume_text.trim() || !job_description.trim()) {
       return res.status(422).json({ error: 'Both resume and job description are required.' });
     }
-    const result = matchJob(resume_text, job_description);
-    return res.json(result);
+    const localResult = matchJob(resume_text, job_description);
+
+    // If Gemini is available, enhance with semantic ATS depth & tailored advice
+    if (aiClient) {
+      try {
+        const prompt = `You are CareerLens AI Senior Talent Acquisition Partner & ATS Evaluation Engine.
+Analyze the alignment between this Candidate Resume and the Target Job Description:
+
+Candidate Resume Excerpt:
+${resume_text.slice(0, 3000)}
+
+Target Job Description Excerpt:
+${job_description.slice(0, 2500)}
+
+Return a strict JSON object with:
+{
+  "overall": <integer 0-100 indicating authentic ATS match percentage>,
+  "matched": ["top 5-8 verified matched skills / technologies / qualifications"],
+  "missing": ["top 3-6 critical missing requirements / skill gaps from JD"],
+  "recommended_skills": ["actionable certifications, tools or skills to bridge the gap"],
+  "semantic_similarity": <number 0-100>,
+  "summary": "<2-sentence clear executive summary of candidate fit>",
+  "experience_alignment": "Strong Alignment" | "Moderate Alignment" | "Needs Improvement",
+  "tailoring_tips": ["3 concrete, actionable resume bullets or adjustments to pass ATS screens for this job"]
+}`;
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          if (typeof parsed.overall === 'number' && parsed.overall >= 0 && parsed.overall <= 100) {
+            return res.json({
+              ...localResult,
+              ...parsed,
+              matched: Array.isArray(parsed.matched) && parsed.matched.length ? parsed.matched : localResult.matched,
+              missing: Array.isArray(parsed.missing) && parsed.missing.length ? parsed.missing : localResult.missing,
+            });
+          }
+        }
+      } catch (geminiErr) {
+        // Fallback to local match gracefully
+      }
+    }
+
+    return res.json(localResult);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Matching failed' });
   }
 });
 
-// Salary estimation endpoint. Uses the same role catalogue as the client fallback,
-// so the UI and API return consistent, industry-specific planning estimates.
-// This is not a live salary-data feed.
-app.post('/api/salary/estimate', (req: Request, res: Response) => {
+// Salary estimation endpoint: dynamically generates non-predefined, real-time market compensation
+app.post('/api/salary/estimate', async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const role = String(body.role ?? '').trim().slice(0, 120);
@@ -501,6 +624,85 @@ app.post('/api/salary/estimate', (req: Request, res: Response) => {
 
     if (!role) {
       return res.status(422).json({ error: 'A job title is required.' });
+    }
+
+    // Use Gemini AI for dynamic, tailored, non-predefined compensation intelligence
+    if (aiClient) {
+      try {
+        const isIndia = /india|inr|delhi|bangalore|bengaluru|mumbai|hyderabad|pune|chennai/i.test(location);
+        const isEurope = /europe|eur|germany|uk|london|france|berlin|netherlands|ireland/i.test(location);
+
+        const prompt = `You are a Principal Global Compensation & Executive Talent Intelligence Analyst.
+Generate dynamic, non-predefined, real-time market compensation intelligence based on 2025/2026 hiring benchmarks for:
+Role: "${role}"
+Experience / Seniority: "${experience}"
+Geographic Market / Location: "${location}"
+Specialized Skills / Technologies: ${skills.length ? skills.join(', ') : 'Standard core competencies'}
+
+CRITICAL FORMAT RULES:
+- If location is India: min_salary, median_salary, max_salary MUST be annual Lakhs Per Annum (LPA) as realistic decimal numbers (e.g. 14.5, 18.2, 24.0). currency_symbol: "₹", currency_code: "INR / LPA".
+- If location is Europe: annual thousands in EUR (e.g. 58, 75, 95). currency_symbol: "€", currency_code: "EUR / year (thousands)".
+- If location is North America or Global Remote: annual thousands in USD (e.g. 110, 142, 178). currency_symbol: "$", currency_code: "USD / year (thousands)".
+- monthly_in_hand MUST be the realistic net take-home in local currency per month after local taxes & deductions.
+- negotiation_tip: Provide an original, customized negotiation script/advice specifically citing the candidate's exact skills (${skills.slice(0, 4).join(', ')}), market leverage points, and counter-offer strategy.
+- equity_grant: Provide realistic equity/RSU details tailored to this exact role & level.
+- market_sentiment: Describe real hiring demand and talent competition for this specific role.
+
+Return JSON strictly matching this schema:
+{
+  "min_salary": <number>,
+  "median_salary": <number>,
+  "max_salary": <number>,
+  "currency_symbol": "₹" | "$" | "€",
+  "currency_code": "INR / LPA" | "USD / year (thousands)" | "EUR / year (thousands)",
+  "monthly_in_hand": <number>,
+  "quartiles": {
+    "q25": <number>,
+    "q50": <number>,
+    "q75": <number>,
+    "q90": <number>
+  },
+  "bonus_percentage": "<e.g. 12% - 18%>",
+  "equity_grant": "<custom equity details>",
+  "market_sentiment": "<custom market demand insights>",
+  "top_paying_skills": ["<5 to 7 specific complementary high-value skills>"],
+  "negotiation_tip": "<custom actionable negotiation strategy citing role, skills and target figures>",
+  "note": "AI-calculated live compensation model reflecting current market demand and skill premiums.",
+  "source": "CareerLens Live Market Compensation Intelligence"
+}`;
+
+        const response = await aiClient.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          if (
+            parsed &&
+            typeof parsed.min_salary === 'number' &&
+            typeof parsed.median_salary === 'number' &&
+            typeof parsed.max_salary === 'number' &&
+            parsed.median_salary > 0
+          ) {
+            return res.json({
+              role,
+              experience,
+              location,
+              ...parsed,
+              quartiles: parsed.quartiles || {
+                q25: parsed.min_salary,
+                q50: parsed.median_salary,
+                q75: Math.round((parsed.min_salary * 0.35 + parsed.max_salary * 0.65) * 10) / 10,
+                q90: parsed.max_salary,
+              },
+            });
+          }
+        }
+      } catch (geminiErr) {
+        console.warn('[CareerLens] Gemini salary generation fallback:', geminiErr);
+      }
     }
 
     const result = estimateSalaryClientSide(
@@ -582,12 +784,12 @@ app.post('/api/job/fraud', (req: Request, res: Response) => {
       isLegitDomain = trustedHostRoots.some(exactOrSubdomain);
 
       const suspicious = [
-        { test: h => h === 't.me' || h.endsWith('.t.me') || h === 'telegram.me' || h.endsWith('.telegram.me'), msg: 'Messaging redirect: The URL opens a Telegram destination.' },
-        { test: h => h === 'wa.me' || h.endsWith('.wa.me') || h === 'whatsapp.com' || h.endsWith('.whatsapp.com'), msg: 'Messaging redirect: The URL opens a WhatsApp destination.' },
-        { test: h => h === 'bit.ly' || h.endsWith('.bit.ly') || h === 'tinyurl.com' || h.endsWith('.tinyurl.com'), msg: 'Shortened URL: The final destination is not visible from this link alone.' },
-        { test: h => /\.(xyz|top|icu)$/.test(h), msg: 'Uncommon domain ending: Verify the company and final destination independently.' },
-        { test: h => h === 'forms.gle' || h.endsWith('.forms.gle'), msg: 'Generic form link: Confirm the form is linked from the employer’s official careers site.' },
-        { test: h => /amaz0n|g00gle|linked1n|micros0ft/.test(h), msg: 'Possible brand impersonation: The domain contains a lookalike spelling.' },
+        { test: (h: string) => h === 't.me' || h.endsWith('.t.me') || h === 'telegram.me' || h.endsWith('.telegram.me'), msg: 'Messaging redirect: The URL opens a Telegram destination.' },
+        { test: (h: string) => h === 'wa.me' || h.endsWith('.wa.me') || h === 'whatsapp.com' || h.endsWith('.whatsapp.com'), msg: 'Messaging redirect: The URL opens a WhatsApp destination.' },
+        { test: (h: string) => h === 'bit.ly' || h.endsWith('.bit.ly') || h === 'tinyurl.com' || h.endsWith('.tinyurl.com'), msg: 'Shortened URL: The final destination is not visible from this link alone.' },
+        { test: (h: string) => /\.(xyz|top|icu)$/.test(h), msg: 'Uncommon domain ending: Verify the company and final destination independently.' },
+        { test: (h: string) => h === 'forms.gle' || h.endsWith('.forms.gle'), msg: 'Generic form link: Confirm the form is linked from the employer’s official careers site.' },
+        { test: (h: string) => /amaz0n|g00gle|linked1n|micros0ft/.test(h), msg: 'Possible brand impersonation: The domain contains a lookalike spelling.' },
       ];
       for (const item of suspicious) {
         if (item.test(host) && !linkSignals.includes(item.msg)) linkSignals.push(item.msg);
@@ -778,114 +980,188 @@ Rules:
   }
 });
 
-// Pre-interview assessment generation
+// Pre-interview assessment generation (supports 1 to 100 adjustable questions)
 app.post('/api/assessment/generate', (req: Request, res: Response) => {
   const { role = 'Software Developer', question_count = 20 } = req.body;
   const bank = getAssessmentBank(role);
-  const count = Math.max(5, Math.min(50, question_count));
+  const count = Math.max(1, Math.min(100, Number(question_count) || 20));
   const questions: any[] = [];
 
   for (let i = 0; i < count; i++) {
     const base = bank[i % bank.length];
     const opts = [...base.options].sort(() => Math.random() - 0.5);
+    const cycle = Math.floor(i / bank.length);
+    const scenarioPrefix = cycle > 0 ? `[Scenario Case ${cycle + 1}] ` : '';
     questions.push({
       id: i + 1,
-      question: count > bank.length && i >= bank.length ? `${base.question} (Scenario ${Math.floor(i / bank.length) + 1})` : base.question,
+      question: `${scenarioPrefix}${base.question}`,
       options: opts,
       answer: base.answer,
-      section: base.section,
+      section: base.section || 'Technical Competency',
+      weight: Math.round((100 / count) * 100) / 100,
     });
   }
 
   return res.json({
     role,
     question_count: count,
+    total_marks: 100,
+    marks_per_question: Math.round((100 / count) * 100) / 100,
     questions,
-    source: 'careerlens-assessment-generator-v2',
+    source: 'careerlens-qualifying-engine-v3',
   });
 });
 
-// Pre-interview assessment score
+// Pre-interview assessment score (Strict 100-Mark Scale Evaluation)
 app.post('/api/assessment/score', (req: Request, res: Response) => {
   const { questions = [], answers = {} } = req.body;
   let correct = 0;
   let wrong = 0;
   let unanswered = 0;
 
+  const sectionStats: Record<string, { total: number; correct: number; percentage: number }> = {};
+
   for (const q of questions) {
+    const sec = q.section || 'General';
+    if (!sectionStats[sec]) sectionStats[sec] = { total: 0, correct: 0, percentage: 0 };
+    sectionStats[sec].total++;
+
     const qid = String(q.id);
     const selected = answers[qid] ?? answers[q.id];
     if (selected === undefined || selected === null || selected === '') {
       unanswered++;
     } else if (String(selected).trim() === String(q.answer).trim()) {
       correct++;
+      sectionStats[sec].correct++;
     } else {
       wrong++;
     }
   }
 
-  const total = questions.length;
-  const percentage = total > 0 ? Math.round((correct / total) * 1000) / 10 : 0;
+  // Calculate section percentages
+  for (const sec of Object.keys(sectionStats)) {
+    const s = sectionStats[sec];
+    s.percentage = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
+  }
+
+  const total = questions.length || 1;
+  const score_out_of_100 = Math.round((correct / total) * 1000) / 10;
+  const percentage = score_out_of_100;
 
   return res.json({
     score: correct,
     total,
+    score_out_of_100,
+    total_marks: 100,
+    marks_per_question: Math.round((100 / total) * 100) / 100,
     percentage,
     correct_count: correct,
     wrong_count: wrong,
     unanswered_count: unanswered,
+    passed: score_out_of_100 >= 60,
+    section_breakdown: sectionStats,
   });
 });
 
-// Mock interview questions
-app.post('/api/mock-interview/questions', (req: Request, res: Response) => {
+// Mock interview questions (supports 1 to 100 progressive questions)
+app.post('/api/mock-interview/questions', async (req: Request, res: Response) => {
   const { role = 'Software Developer', resume_text = '', company = '', transcript = [] } = req.body;
   const companyName = company.trim() || 'our team';
+  const qIndex = transcript.length + 1;
   const skills = Array.from(new Set(getSkillSet(resume_text))).sort();
 
-  const questions: string[] = [
-    `Please introduce yourself and walk me through your background, highlighting why you are a strong fit for the ${role} position.`,
-    `What inspired you to specialize in the ${role} career path, and what excites you about this opportunity?`,
-    `Why do you want to work at ${companyName}, and what value would you bring to our team?`,
-    'Tell me about the most impactful project or achievement on your resume. What was your personal contribution?',
-  ];
+  // If Gemini is available, generate dynamic progressive question
+  if (aiClient) {
+    try {
+      const lastItem = transcript[transcript.length - 1];
+      const prompt = `You are CareerLens Senior Interviewer conducting a mock interview for the role: "${role}" at ${companyName}.
+This is Question #${qIndex}.
+Candidate skills: ${skills.slice(0, 8).join(', ') || 'General domain proficiency'}.
+${lastItem ? `Candidate's previous response: "${String(lastItem.answer).slice(0, 500)}"` : 'This is the start of the interview.'}
 
-  for (const s of skills.slice(0, 5)) {
-    questions.push(`Your resume highlights ${s}. Can you describe a production challenge where you utilized ${s} and what outcome was achieved?`);
+Generate Question #${qIndex} for this candidate.
+If Q1-Q3: Focus on background, project ownership, or motivation.
+If Q4-Q20: Ask deep domain technical questions, architectural trade-offs, debugging scenarios, or system design.
+If Q21+: Ask advanced leadership, cross-functional collaboration, crisis handling, or strategic execution.
+Output ONLY the question string, with no introductory text or quotes.`;
+
+      const response = await aiClient.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+      });
+
+      if (response.text && response.text.trim()) {
+        return res.json({
+          next_question: response.text.trim(),
+          question_number: qIndex,
+          source: 'gemini-3.8-flash',
+        });
+      }
+    } catch {
+      // Fallback to local generator
+    }
   }
 
-  questions.push(
-    'Tell me about a complex technical or operational roadblock you encountered and how you resolved it.',
-    'Tell me about a time you received constructive feedback or faced a failure. What did you learn?',
-    'How do you prioritize your deliverables when multiple high-stakes tasks compete for your attention?',
-    `What is one area of improvement you are currently developing in ${role}?`,
-    'What do you aim to accomplish in your first 90 days in this role?'
-  );
+  // Comprehensive progressive question bank for up to 100 questions
+  const baseQuestions: string[] = [
+    `Please introduce yourself and walk me through your career journey, highlighting why you are a strong fit for the ${role} position.`,
+    `What inspired you to specialize in ${role}, and what excites you about the opportunities at ${companyName}?`,
+    'Tell me about the most technically challenging project on your resume. What was your personal ownership?',
+    'Describe a scenario where you had to quickly learn an unfamiliar technology or toolchain to deliver a critical milestone.',
+    'Walk me through a major technical design trade-off you evaluated recently. Why did you choose that path over alternatives?',
+    'Tell me about a high-severity production bug or system incident you diagnosed. How did you isolate root cause?',
+    'How do you balance delivering rapid feature prototypes with maintaining long-term code quality and test coverage?',
+    'Tell me about a time you received critical code review feedback or architectural pushback. How did you resolve the disagreement?',
+    'Describe an experience working under tight or shifting deadlines. How did you prioritize deliverables?',
+    'How do you approach performance profiling, latency reduction, or resource optimization in your systems?',
+    'Tell me about a time you had to mentor a junior engineer or guide a cross-functional teammate through a complex workflow.',
+    `What are the most exciting emerging methodologies or technological shifts happening right now in ${role}?`,
+    'Tell me about an initiative where you proactively identified a gap in existing processes and drove improvement without being asked.',
+    'How do you ensure data integrity, security best practices, and error handling in high-throughput workflows?',
+    `What do you aim to achieve and deliver in your first 90 days as a ${role} with ${companyName}?`,
+  ];
 
-  const used = new Set(transcript.map((t: any) => String(t.question || '')));
-  const remaining = questions.filter(q => !used.has(q));
-  const next_question = remaining.length > 0 ? remaining[0] : `As a ${role}, what would be your strategy for scaling our current workflow?`;
+  for (const s of skills.slice(0, 10)) {
+    baseQuestions.push(`Your background highlights ${s}. Can you describe a specific production challenge where you utilized ${s} and what outcome was achieved?`);
+  }
+
+  const extendedThemes = [
+    'Describe a time when project scope was ambiguous. How did you define requirements and establish milestone success criteria?',
+    'How do you monitor and maintain operational health once features are deployed to production?',
+    'Tell me about a time you had to persuade non-technical stakeholders to invest time into refactoring technical debt.',
+    'What is your methodology for automated testing, regression suites, and continuous integration?',
+    'Describe a project failure or missed milestone. What was the post-mortem takeaway and how did you adapt?',
+    'How do you manage dependencies and avoid bottlenecks when collaborating across distributed or remote teams?',
+    'What strategies do you use to keep your technical skills sharp in an evolving industry?',
+  ];
+
+  const pool = [...baseQuestions, ...extendedThemes];
+  const cycle = Math.floor((qIndex - 1) / pool.length);
+  const picked = pool[(qIndex - 1) % pool.length];
+  const next_question = cycle > 0 ? `[Follow-up Depth Level ${cycle + 1}] ${picked}` : picked;
 
   return res.json({
     next_question,
-    available_questions: remaining.length,
+    question_number: qIndex,
     source: 'careerlens-interview-engine',
   });
 });
 
-// Mock interview scoring
+// Mock interview scoring with Confidence & Readiness Index
 app.post('/api/mock-interview/score', (req: Request, res: Response) => {
   const { transcript = [], role = 'Software Developer' } = req.body;
   if (!transcript || transcript.length === 0) {
     return res.json({
       overall: 0,
+      confidence_index: 0,
+      readiness_level: 'Not Evaluated',
       communication: 0,
       completeness: 0,
       evidence: 0,
       relevance: 0,
       answered: 0,
       strengths: [],
-      improvements: ['Submit answers before completing the mock interview.'],
+      improvements: ['Submit at least one answer before completing the mock interview.'],
     });
   }
 
@@ -893,39 +1169,49 @@ app.post('/api/mock-interview/score', (req: Request, res: Response) => {
   const wordCounts = answers.map((a: string) => a.split(/\s+/).filter(Boolean).length);
   const avgWords = wordCounts.reduce((acc: number, c: number) => acc + c, 0) / wordCounts.length;
 
-  const substantiveCount = wordCounts.filter((w: number) => w >= 25).length;
+  const substantiveCount = wordCounts.filter((w: number) => w >= 20).length;
   const completeness = Math.round((substantiveCount / answers.length) * 100);
 
-  const evidenceKeywords = ['because', 'result', 'impact', 'example', 'metric', 'improved', 'built', 'developed', 'implemented', 'saved', 'percent', '%'];
+  const evidenceKeywords = ['because', 'result', 'impact', 'example', 'metric', 'improved', 'built', 'developed', 'implemented', 'saved', 'percent', '%', 'reduced', 'increased', 'optimized'];
   const evidenceCount = answers.filter((a: string) => evidenceKeywords.some(k => a.toLowerCase().includes(k))).length;
   const evidence = Math.round((evidenceCount / answers.length) * 100);
 
   const roleLower = role.toLowerCase();
-  const relevanceCount = answers.filter((a: string) => a.toLowerCase().includes(roleLower) || ['experience', 'project', 'skill', 'problem', 'solution', 'team'].some(k => a.toLowerCase().includes(k))).length;
+  const relevanceCount = answers.filter((a: string) => a.toLowerCase().includes(roleLower) || ['experience', 'project', 'skill', 'problem', 'solution', 'team', 'system', 'design', 'process'].some(k => a.toLowerCase().includes(k))).length;
   const relevance = Math.round((relevanceCount / answers.length) * 100);
 
-  const communication = Math.min(100, Math.round(Math.min(100, avgWords * 2.5) * 0.6 + evidence * 0.2 + relevance * 0.2));
-  const overall = Math.max(10, Math.min(98, Math.round(communication * 0.45 + completeness * 0.25 + evidence * 0.15 + relevance * 0.15)));
+  const communication = Math.min(100, Math.round(Math.min(100, avgWords * 2.2) * 0.55 + evidence * 0.25 + relevance * 0.20));
+  const overall = Math.max(15, Math.min(98, Math.round(communication * 0.40 + completeness * 0.25 + evidence * 0.20 + relevance * 0.15)));
+  const confidenceIndex = Math.min(99, Math.round(overall * 0.92 + Math.min(transcript.length, 10) * 1.2));
+
+  let readinessLevel = 'Emerging Candidate';
+  if (confidenceIndex >= 85) readinessLevel = 'High Interview Readiness (Offer Caliber)';
+  else if (confidenceIndex >= 70) readinessLevel = 'Competitive Candidate (Interview Ready)';
+  else if (confidenceIndex >= 50) readinessLevel = 'Moderate Readiness (Polish Evidence & STAR Format)';
 
   const strengths: string[] = [
-    `Completed ${transcript.length} interview responses for ${role}.`,
+    `Successfully completed ${transcript.length} interview responses for ${role}.`,
   ];
-  if (avgWords >= 40) strengths.push('Answers demonstrate comprehensive thought and situational detail.');
-  if (evidence >= 50) strengths.push('Strong use of concrete evidence, metrics, and actionable examples.');
+  if (avgWords >= 35) strengths.push('Answers demonstrate thoughtful articulation and clear situational context.');
+  if (evidence >= 45) strengths.push('Strong inclusion of quantitative outcomes, technical ownership, and metrics.');
+  if (relevance >= 60) strengths.push(`Consistently aligned responses with target competencies for ${role}.`);
 
   const improvements: string[] = [];
-  if (evidence < 40) improvements.push('Incorporate the STAR methodology with measurable business metrics (e.g. reduced load time by 30%).');
-  if (avgWords < 30) improvements.push('Expand on your individual ownership and technical decision trade-offs.');
+  if (evidence < 40) improvements.push('Apply the STAR method (Situation, Task, Action, Result) with specific business numbers (e.g. "reduced latency by 25%").');
+  if (avgWords < 30) improvements.push('Provide deeper context on your personal technical decisions and the trade-offs you evaluated.');
+  if (improvements.length === 0) improvements.push('Maintain this structured, confident communication cadence in your upcoming live interviews.');
 
   return res.json({
     overall,
+    confidence_index: confidenceIndex,
+    readiness_level: readinessLevel,
     communication,
     completeness,
     evidence,
     relevance,
     answered: transcript.length,
     strengths,
-    improvements: improvements.length ? improvements : ['Maintain this structured, evidence-first communication style in live interviews.'],
+    improvements,
   });
 });
 

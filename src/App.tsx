@@ -242,7 +242,7 @@ export const App: React.FC = () => {
         case 'Job Match':
           return <JobMatchView analysis={analysis} />;
         case 'Salary Estimation':
-          return <SalaryEstimationView />;
+          return <SalaryEstimationView analysis={analysis} />;
         case 'Career Roadmap':
           return <CareerRoadmapView analysis={analysis} />;
         case 'Job Detection':
