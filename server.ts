@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { estimateSalaryClientSide } from './src/services/careerService';
 
 dotenv.config();
 
@@ -485,115 +486,37 @@ app.post('/api/job/match', (req: Request, res: Response) => {
   }
 });
 
-// Robust Salary estimate endpoint
-app.post('/api/salary/estimate', async (req: Request, res: Response) => {
-  const { role = 'Software Developer', experience = 'Mid-Level (2-5 yrs)', location = 'India', skills = [] } = req.body;
-  const roleL = (role || 'Software Developer').toLowerCase();
-  const locL = (location || 'India').toLowerCase();
+// Salary estimation endpoint. Uses the same role catalogue as the client fallback,
+// so the UI and API return consistent, industry-specific planning estimates.
+// This is not a live salary-data feed.
+app.post('/api/salary/estimate', (req: Request, res: Response) => {
+  try {
+    const body = req.body || {};
+    const role = String(body.role ?? '').trim().slice(0, 120);
+    const experience = String(body.experience ?? 'Mid Level').trim().slice(0, 60);
+    const location = String(body.location ?? 'India').trim().slice(0, 100);
+    const skills = Array.isArray(body.skills)
+      ? body.skills.slice(0, 30).map((skill: unknown) => String(skill).slice(0, 80))
+      : [];
 
-  // Baseline market rate in LPA (INR) for India, or in USD ($k) for North America / Global
-  let baseLPA = 5.0;
-  let isUSD = locL.includes('north america') || locL.includes('usd') || locL.includes('global remote');
-  let isEUR = locL.includes('europe') || locL.includes('eur');
+    if (!role) {
+      return res.status(422).json({ error: 'A job title is required.' });
+    }
 
-  // Role domain multipliers
-  if (['ai', 'machine learning', 'deep learning', 'llm', 'computer vision'].some(k => roleL.includes(k))) baseLPA = 8.5;
-  else if (['data scientist', 'data science'].some(k => roleL.includes(k))) baseLPA = 7.5;
-  else if (['cloud', 'devops', 'sre', 'platform', 'infrastructure'].some(k => roleL.includes(k))) baseLPA = 7.2;
-  else if (['full stack', 'backend', 'distributed systems', 'system architect'].some(k => roleL.includes(k))) baseLPA = 6.8;
-  else if (['software', 'developer', 'frontend', 'mobile', 'ios', 'android'].some(k => roleL.includes(k))) baseLPA = 5.8;
-  else if (['product manager', 'project manager', 'scrum master'].some(k => roleL.includes(k))) baseLPA = 7.0;
-  else if (['cybersecurity', 'security analyst', 'infosec'].some(k => roleL.includes(k))) baseLPA = 6.5;
-  else if (['data analyst', 'business analyst', 'bi developer'].some(k => roleL.includes(k))) baseLPA = 4.8;
-  else if (['qa', 'testing', 'automation engineer'].some(k => roleL.includes(k))) baseLPA = 4.5;
-  else if (['finance', 'accountant', 'financial analyst'].some(k => roleL.includes(k))) baseLPA = 4.5;
-  else if (['hr', 'talent acquisition', 'recruiter', 'marketing'].some(k => roleL.includes(k))) baseLPA = 4.2;
+    const result = estimateSalaryClientSide(
+      role,
+      experience || 'Mid Level',
+      location || 'India',
+      skills,
+    );
 
-  // Seniority multiplier
-  if (experience.includes('Fresher') || experience.includes('0-1')) {
-    baseLPA *= 0.85;
-  } else if (experience.includes('Mid') || experience.includes('2-5')) {
-    baseLPA *= 1.45;
-  } else if (experience.includes('Senior') || experience.includes('5-8')) {
-    baseLPA *= 2.15;
-  } else if (experience.includes('Lead') || experience.includes('Principal') || experience.includes('8+')) {
-    baseLPA *= 2.95;
+    return res.json(result);
+  } catch (error: unknown) {
+    console.error('[CareerLens] Salary estimation failed:', error);
+    return res.status(500).json({
+      error: 'Salary estimation failed. Please try again.',
+    });
   }
-
-  // Skills stack bonus (e.g. specialized skills boost offer rates)
-  const skillsList = Array.isArray(skills) ? skills.map(s => String(s).toLowerCase()) : [];
-  let skillPremium = 0;
-  if (skillsList.some(s => s.includes('aws') || s.includes('kubernetes') || s.includes('docker'))) skillPremium += 0.08;
-  if (skillsList.some(s => s.includes('pytorch') || s.includes('machine learning') || s.includes('fastapi'))) skillPremium += 0.10;
-  if (skillsList.some(s => s.includes('system design') || s.includes('microservices'))) skillPremium += 0.07;
-  baseLPA *= (1 + skillPremium);
-
-  let currencySymbol = '₹';
-  let currencyCode = 'LPA (INR)';
-  let minSalary: number;
-  let maxSalary: number;
-  let medianSalary: number;
-  let monthlyInHand: number;
-
-  if (isUSD) {
-    // Convert to US Tech benchmark ($k USD)
-    currencySymbol = '$';
-    currencyCode = 'USD / Year';
-    const baseUSD = baseLPA * 14.5; // Roughly 70k - 240k USD
-    minSalary = Math.round(baseUSD * 0.82);
-    maxSalary = Math.round(baseUSD * 1.55);
-    medianSalary = Math.round((minSalary + maxSalary) / 2);
-    // Estimated monthly take-home after ~28% effective federal/state taxes
-    monthlyInHand = Math.round((medianSalary * 1000 * 0.72) / 12);
-  } else if (isEUR) {
-    currencySymbol = '€';
-    currencyCode = 'EUR / Year';
-    const baseEUR = baseLPA * 11.0;
-    minSalary = Math.round(baseEUR * 0.82);
-    maxSalary = Math.round(baseEUR * 1.5);
-    medianSalary = Math.round((minSalary + maxSalary) / 2);
-    monthlyInHand = Math.round((medianSalary * 1000 * 0.65) / 12);
-  } else {
-    // India LPA
-    minSalary = Math.round(baseLPA * 0.85 * 10) / 10;
-    maxSalary = Math.round(baseLPA * 1.75 * 10) / 10;
-    medianSalary = Math.round(((minSalary + maxSalary) / 2) * 10) / 10;
-    // Monthly in-hand approx after standard Indian tax & PF (in thousands INR)
-    // 1 LPA = 100,000 INR -> medianSalary * 100,000 / 12 * 0.88 net
-    monthlyInHand = Math.round((medianSalary * 100000 * 0.88) / 12);
-  }
-
-  const q25 = minSalary;
-  const q50 = medianSalary;
-  const q75 = Math.round((minSalary * 0.35 + maxSalary * 0.65) * 10) / 10;
-  const q90 = maxSalary;
-
-  const result = {
-    role,
-    experience,
-    location,
-    currency_symbol: currencySymbol,
-    currency_code: currencyCode,
-    min_salary: minSalary,
-    max_salary: maxSalary,
-    median_salary: medianSalary,
-    monthly_in_hand: monthlyInHand,
-    quartiles: {
-      q25,
-      q50,
-      q75,
-      q90,
-    },
-    bonus_percentage: experience.includes('Lead') ? '18% - 25%' : experience.includes('Senior') ? '15% - 20%' : '10% - 15%',
-    equity_grant: experience.includes('Senior') || experience.includes('Lead') ? 'Significant ESOPs / RSUs (0.05% - 0.25%)' : 'Performance Stock Option pool eligible',
-    market_sentiment: 'High Market Demand (+16% YoY Hiring Growth)',
-    top_paying_skills: ['FastAPI', 'PyTorch', 'AWS', 'Kubernetes', 'System Design', 'React/Next.js'],
-    negotiation_tip: `Always negotiate against the total compensation package (Base + Performance Bonus + Equity). Ground your ask on verified past metric outcomes.`,
-    note: 'Indicative compensation benchmark derived from current verified hiring datasets. Always evaluate against specific equity grants and remote flexibility.',
-    source: 'careerlens-salary-engine-v5',
-  };
-
-  return res.json(result);
 });
 
 // Consistent, conservative Job Scam Detection endpoint.
