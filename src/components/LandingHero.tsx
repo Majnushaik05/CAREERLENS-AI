@@ -61,9 +61,10 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
     return () => clearInterval(interval);
   }, [rollingWords.length]);
 
-  // Attempt autoPlay gracefully
+  // Attempt autoPlay gracefully with slightly slowed playback rate
   useEffect(() => {
     if (videoRef.current) {
+      videoRef.current.playbackRate = 0.85;
       videoRef.current.play().catch(err => {
         console.warn('Autoplay prevented or waiting for interaction:', err);
       });
@@ -76,6 +77,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
       videoRef.current.pause();
       setIsVideoPlaying(false);
     } else {
+      videoRef.current.playbackRate = 0.85;
       videoRef.current.play().catch(console.warn);
       setIsVideoPlaying(true);
     }
@@ -116,13 +118,16 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
           className={`w-full h-full object-cover scale-[1.08] transition-all duration-700 ${
             isLuminous ? 'brightness-[1.20] contrast-[1.07] saturate-[1.12]' : 'brightness-[1.10] contrast-[1.03]'
           }`}
-          src="/assets/aistudio/careerlens_slow_15s_no_logo_e121e1ef.mp4"
+          src="/assets/aistudio/careerlens_neural_brain_slow_bg.mp4"
         />
 
         {/* Corner Watermark Masking Vignettes - Guarantees zero watermark visibility */}
-        <div className="absolute bottom-0 right-0 w-[460px] h-52 bg-gradient-to-tl from-slate-950 via-slate-950/95 to-transparent pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-[480px] h-60 bg-gradient-to-tl from-slate-950 via-slate-950/95 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-36 bg-gradient-to-tr from-slate-950 via-slate-950/80 to-transparent pointer-events-none" />
         <div className="absolute top-0 right-0 w-64 h-24 bg-gradient-to-bl from-slate-950/70 to-transparent pointer-events-none" />
+
+        {/* Dedicated Protective Corner Watermark Shield */}
+        <div className="absolute bottom-2 right-2 w-52 h-28 bg-slate-950/85 backdrop-blur-xl rounded-2xl pointer-events-none border border-blue-500/10" />
 
         {/* Dedicated Career Lens Optical Core Insignia Shield permanently masking video corner */}
         <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-800 shadow-[0_4px_28px_rgba(0,0,0,0.95)] backdrop-blur-md">
@@ -217,209 +222,91 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
         </div>
       </div>
 
-      {/* HERO SECTION MATCHED TO MODERN TECH WORKPLACE VIDEO */}
-      <section id="home" className="pt-14 pb-20 px-6 sm:px-12 relative z-10">
+      {/* HERO SECTION - MERGED DIRECTLY WITH BACKGROUND (NO CARD CONTAINER) */}
+      <section id="home" className="pt-14 sm:pt-20 pb-24 px-6 sm:px-12 relative z-10">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Content Column */}
-            <div className="lg:col-span-6 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-xs font-bold text-blue-300 backdrop-blur-md">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                <span>Smart Career &amp; Recruiter Intelligence</span>
-              </div>
-
-              {/* Dynamic Headline with Rolling Text */}
-              <div className="space-y-2">
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.12]">
-                  Your Career Journey,{' '}
-                  <span className="text-slate-200 block">Smarter with</span>
-                </h1>
-                
-                {/* Rolling Text Animated Display in Electric Blue */}
-                <div className="h-14 sm:h-16 overflow-hidden flex items-center">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={currentWordIndex}
-                      initial={{ opacity: 0, y: 25 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -25 }}
-                      transition={{ duration: 0.4, ease: 'easeOut' }}
-                      className="text-3xl sm:text-4xl lg:text-5xl font-black text-blue-400 drop-shadow-[0_0_24px_rgba(59,130,246,0.6)] tracking-tight"
-                    >
-                      {rollingWords[currentWordIndex]}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-xl font-normal drop-shadow-sm">
-                Evaluate resumes with precision scoring, benchmark in-demand skills, practice structured mock interviews, detect scam job links, and access recruiter talent screening.
-              </p>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={onExploreGuest}
-                  className="px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xl shadow-blue-600/40 border border-blue-400/30 transition flex items-center justify-center gap-2 group"
-                >
-                  <span>Launch Career Lens</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </motion.button>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setAuthTab('signin');
-                    setAuthModalOpen(true);
-                  }}
-                  className="px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs backdrop-blur-md transition flex items-center justify-center gap-2"
-                >
-                  <span>Sign In to Account</span>
-                </motion.button>
-              </div>
-
-              {/* Trust Checkmarks */}
-              <div className="flex flex-wrap items-center gap-5 text-xs text-slate-300 pt-2 font-medium">
-                <div className="flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Real-time graph metrics</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Dual candidate &amp; recruiter workflows</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                  <span>Scam link verification</span>
-                </div>
-              </div>
+          {/* Left-Aligned Hero Content seamlessly merged into the background */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="max-w-2xl w-full space-y-6"
+          >
+            {/* Status pill badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/15 border border-blue-400/30 text-xs font-bold text-blue-300 backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              <span>Smart Career &amp; Recruiter Intelligence</span>
             </div>
 
-            {/* Right Column: Glassmorphic Interactive System & Graph Mockup */}
-            <div className="lg:col-span-6">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                className="rounded-3xl p-6 bg-slate-900/80 backdrop-blur-2xl border border-white/15 shadow-2xl space-y-4"
-              >
-                {/* Mock Window Top Bar */}
-                <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-amber-500/80" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                  </div>
-                  <div className="text-xs font-bold text-slate-300 font-mono flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>careerlens.app / live-telemetry</span>
-                  </div>
-                  <div className="w-12" />
-                </div>
-
-                {/* Simulated Realistic UI Component Inside Card */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Left sub-box: Resume Analysis Card */}
-                  <div className="bg-slate-950/70 p-4.5 rounded-2xl border border-white/10 shadow-lg space-y-3 backdrop-blur-md">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">Your Resume Score</span>
-                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                        Top 15%
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-center py-2">
-                      <div className="relative w-20 h-20 flex items-center justify-center">
-                        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
-                          <defs>
-                            <linearGradient id="scoreBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#3B82F6" />
-                              <stop offset="100%" stopColor="#60A5FA" />
-                            </linearGradient>
-                          </defs>
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.9155"
-                            className="text-slate-800"
-                            strokeWidth="3.5"
-                            stroke="currentColor"
-                            fill="none"
-                          />
-                          <circle
-                            cx="18"
-                            cy="18"
-                            r="15.9155"
-                            stroke="url(#scoreBlueGrad)"
-                            strokeDasharray="84, 100"
-                            strokeWidth="3.5"
-                            strokeLinecap="round"
-                            fill="none"
-                          />
-                        </svg>
-                        <span className="absolute text-sm font-mono font-black text-blue-400">84%</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 text-[11px] text-slate-300">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                        <span>✓</span> <span>High action-verb quantification</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                        <span>✓</span> <span>Verified technical competencies</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-amber-300 font-medium">
-                        <span>•</span> <span>3 target keywords missing</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right sub-box: Top Skill Matches Bar Graph */}
-                  <div className="bg-slate-950/70 p-4.5 rounded-2xl border border-white/10 shadow-lg space-y-2.5 backdrop-blur-md">
-                    <span className="text-xs font-bold text-white">Top Skill Matches</span>
-                    <div className="space-y-2 pt-1">
-                      {[
-                        { skill: 'Distributed Systems', pct: 92 },
-                        { skill: 'React & TypeScript', pct: 88 },
-                        { skill: 'API Architecture', pct: 81 },
-                        { skill: 'Performance Tuning', pct: 76 },
-                      ].map((item, idx) => (
-                        <div key={idx} className="space-y-0.5">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-300 font-medium">{item.skill}</span>
-                            <span className="font-mono font-bold text-blue-300">{item.pct}%</span>
-                          </div>
-                          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full"
-                              style={{ width: `${item.pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-950/70 rounded-xl border border-white/10 text-xs text-slate-300 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="font-semibold text-white">Full Stack &amp; Systems Cohorts Active</span>
-                  </div>
-                  <button
-                    onClick={onExploreGuest}
-                    className="text-blue-400 font-bold hover:text-blue-300 flex items-center gap-1 transition"
+            {/* Dynamic Headline with Rolling Text */}
+            <div className="space-y-2">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.12] drop-shadow-[0_2px_16px_rgba(0,0,0,0.8)]">
+                Your Career Journey,{' '}
+                <span className="text-slate-200 block">Smarter with</span>
+              </h1>
+              
+              {/* Rolling Text Animated Display in Electric Blue */}
+              <div className="h-14 sm:h-16 overflow-hidden flex items-center">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentWordIndex}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    className="text-3xl sm:text-4xl lg:text-5xl font-black text-blue-400 drop-shadow-[0_0_28px_rgba(59,130,246,0.7)] tracking-tight"
                   >
-                    <span>Enter Live</span>
-                    <span>→</span>
-                  </button>
-                </div>
-              </motion.div>
+                    {rollingWords[currentWordIndex]}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
-          </div>
+
+            <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-normal drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)] max-w-xl">
+              Evaluate resumes with precision scoring, benchmark in-demand skills, practice structured mock interviews, detect scam job links, and access recruiter talent screening.
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onExploreGuest}
+                className="px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xl shadow-blue-600/40 border border-blue-400/30 transition flex items-center justify-center gap-2 group"
+              >
+                <span>Launch Career Lens</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setAuthTab('signin');
+                  setAuthModalOpen(true);
+                }}
+                className="px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs backdrop-blur-md transition flex items-center justify-center gap-2"
+              >
+                <span>Sign In to Account</span>
+              </motion.button>
+            </div>
+
+            {/* Trust Checkmarks */}
+            <div className="flex flex-wrap items-center gap-6 text-xs text-slate-300 font-medium pt-2 drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)]">
+              <div className="flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Real-time graph metrics</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Dual candidate &amp; recruiter workflows</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Scam link verification</span>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
