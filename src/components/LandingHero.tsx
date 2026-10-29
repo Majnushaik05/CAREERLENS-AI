@@ -195,32 +195,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onLogin, onExploreGues
         </div>
       </header>
 
-      {/* CONTINUOUS ROLLING TICKER STRIP */}
-      <div className="border-b border-white/10 bg-slate-950/50 backdrop-blur-md py-2 overflow-hidden relative z-10">
-        <div className="animate-marquee whitespace-nowrap flex items-center gap-8 text-[11px] font-semibold text-slate-300">
-          {[
-            '⚡ 94+ Score Radar',
-            '📊 Real-Time Skill Gap Analysis',
-            '🎯 Role-Based Assessment Tokens',
-            '🎙️ STAR Method Mock Interviews',
-            '📈 Live Salary Market Bands',
-            '🏢 Sourced Applicant Shortlisting',
-            '🔒 Credential Verification & Vault',
-            '🗺️ Personalized Career Roadmap Nodes',
-            '⚡ 94+ Score Radar',
-            '📊 Real-Time Skill Gap Analysis',
-            '🎯 Role-Based Assessment Tokens',
-            '🎙️ STAR Method Mock Interviews',
-            '📈 Live Salary Market Bands',
-            '🏢 Sourced Applicant Shortlisting',
-          ].map((item, idx) => (
-            <span key={idx} className="flex items-center gap-2">
-              <span className="text-slate-200">{item}</span>
-              <span className="text-blue-500/50">/</span>
-            </span>
-          ))}
-        </div>
-      </div>
 
       {/* HERO SECTION - MERGED DIRECTLY WITH BACKGROUND (NO CARD CONTAINER) */}
       <section id="home" className="pt-14 sm:pt-20 pb-24 px-6 sm:px-12 relative z-10">
