@@ -6,14 +6,8 @@ import {
   Upload,
   CheckCircle2,
   AlertCircle,
-  Award,
-  TrendingUp,
-  BarChart3,
-  Sliders,
   Check,
-  FileCheck,
   RotateCcw,
-  Sparkles,
   ArrowRight,
 } from 'lucide-react';
 
@@ -62,8 +56,12 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
       }
       setResumeText(text);
     };
-    reader.onerror = () => setError('The selected file could not be read. Please try another file or paste the resume text.');
+    reader.onerror = () => {
+      setError('The selected file could not be read. Please try another file or paste the resume text.');
+      setUploadedFileName(null);
+    };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleAnalyze = async (customText?: string) => {
@@ -90,8 +88,13 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   };
 
   const hasAnalysis = Boolean(analysis);
-  const score = analysis ? analysis.resume_score : null;
-  const readiness = analysis ? analysis.readiness : null;
+  const clampScore = (value: number | null | undefined) =>
+    typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(0, Math.min(100, Math.round(value)))
+      : null;
+
+  const score = analysis ? clampScore(analysis.resume_score) : null;
+  const readiness = analysis ? clampScore(analysis.readiness) : null;
 
   // Compare detected resume keywords with the selected role's keyword checklist.
   // This is keyword evidence, not a measure of actual skill proficiency.
@@ -466,7 +469,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
 
           <div className="text-[11px] text-slate-400 text-center pt-1">
             {hasAnalysis
-              ? 'Keyword presence in the resume compared with the selected role's keyword checklist.
+              ? "Keyword presence in the resume compared with the selected role's keyword checklist."
               : 'Run an analysis to compare detected resume keywords with the selected role.'}
           </div>
         </div>
