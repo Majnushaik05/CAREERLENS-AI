@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth/mammoth.browser';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 import { ResumeAnalysis } from '../types';
 import {
   safeAnalyzeResume,
@@ -43,40 +47,69 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   const [activeRoleTitle, setActiveRoleTitle] = useState('Full Stack Developer');
   const [customRoleInput, setCustomRoleInput] = useState('');
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
 
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    if (!['txt', 'md'].includes(extension || '')) {
-      setError('For reliable text extraction, upload a .txt or .md file, or paste text copied from your PDF/DOCX resume.');
-      e.target.value = '';
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const supported = ['pdf', 'docx', 'txt', 'md'];
+    if (!supported.includes(extension)) {
+      setError('Unsupported file. Please upload a PDF, Word (.docx), TXT, or Markdown file.');
+      input.value = '';
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setError('The resume text file must be smaller than 2 MB.');
-      e.target.value = '';
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Please choose a resume smaller than 10 MB.');
+      input.value = '';
       return;
     }
 
     setError(null);
-    setUploadedFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = event => {
-      const text = String(event.target?.result || '').trim();
-      if (!text) {
-        setError('No readable text was found in this file. Please paste your resume text.');
-        setUploadedFileName(null);
-        return;
+    setLoading(true);
+    setUploadedFileName(null);
+    try {
+      let extractedText = '';
+      if (extension === 'txt' || extension === 'md') {
+        extractedText = await file.text();
+      } else if (extension === 'docx') {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        extractedText = result.value || '';
+      } else if (extension === 'pdf') {
+        const data = new Uint8Array(await file.arrayBuffer());
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const pages: string[] = [];
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          const page = await pdf.getPage(pageNumber);
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map(item => ('str' in item ? item.str : ''))
+            .filter(Boolean)
+            .join(' ');
+          pages.push(pageText);
+        }
+        extractedText = pages.join('\n\n');
       }
-      setResumeText(text);
-    };
-    reader.onerror = () => {
-      setError('The selected file could not be read. Please try another file or paste the resume text.');
+
+      extractedText = extractedText.replace(/\u0000/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      if (extractedText.length < 30) {
+        throw new Error(extension === 'pdf'
+          ? 'No selectable text was found in this PDF. It may be a scanned image; please use an OCR-enabled PDF or paste the resume text.'
+          : 'Not enough readable text was found in this document. Please check the file or paste the resume text.');
+      }
+
+      setResumeText(extractedText);
+      setUploadedFileName(file.name);
+      setError(null);
+    } catch (err: any) {
+      setResumeText('');
       setUploadedFileName(null);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+      setError(err?.message || 'Could not read this resume. Please try another PDF or DOCX file.');
+    } finally {
+      setLoading(false);
+      input.value = '';
+    }
   };
 
   const handleAnalyze = async (customText?: string) => {
@@ -160,9 +193,9 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             {/* Drag & Drop Area */}
             <label className="flex-1 w-full border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-blue-50/20 transition">
               <Upload className="w-7 h-7 text-blue-600 mb-2" />
-              <div className="text-xs font-bold text-slate-800">Choose your resume text file (TXT/MD)</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">PDF/DOCX: copy the resume text and paste it below</div>
-              <input type="file" accept=".txt,.md" onChange={handleFileUpload} className="hidden" />
+              <div className="text-xs font-bold text-slate-800">Upload your resume (PDF / DOCX / TXT)</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Maximum file size: 10 MB · Selectable-text PDF supported</div>
+              <input type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={handleFileUpload} className="hidden" />
             </label>
 
             {/* Uploaded File Pill Card */}
