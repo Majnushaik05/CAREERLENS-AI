@@ -393,76 +393,83 @@ export function evaluateRoleAlignment(
   roleReadiness: 'High Alignment' | 'Moderate Alignment' | 'Developing Fit';
   tailoringTips: string[];
 } {
-  const normRole = targetRole.trim().toLowerCase();
-  const lowerSkills = new Set(resumeSkills.map(s => s.toLowerCase()));
-  const lowerText = (resumeText || '').toLowerCase();
+  const normalize = (value: string) =>
+    value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9+#.]+/g, ' ').trim().replace(/\s+/g, ' ');
 
-  // Find profile by key or title
-  let profile: RoleProfile | undefined = Object.values(TARGET_ROLE_PROFILES).find(
-    p => p.title.toLowerCase() === normRole || normRole.includes(p.title.toLowerCase())
+  const normRole = normalize(targetRole || '');
+  const entries = Object.entries(TARGET_ROLE_PROFILES);
+
+  // Match only a complete role key/title. Avoid partial-word matches such as
+  // "developer" accidentally selecting whichever profile appears first.
+  let selected = entries.find(([key, p]) =>
+    normalize(key.replace(/-/g, ' ')) === normRole || normalize(p.title) === normRole
   );
 
-  if (!profile) {
-    for (const [key, p] of Object.entries(TARGET_ROLE_PROFILES)) {
-      if (normRole.includes(key.replace(/-/g, ' ')) || key.split('-').some(k => normRole.includes(k))) {
-        profile = p;
-        break;
-      }
-    }
+  // Permit a role title with a harmless suffix, but require the full known
+  // title/key to be present as a phrase rather than matching one generic word.
+  if (!selected) {
+    selected = entries.find(([key, p]) => {
+      const keyName = normalize(key.replace(/-/g, ' '));
+      const title = normalize(p.title);
+      return (keyName.length >= 8 && normRole.includes(keyName)) ||
+             (title.length >= 8 && normRole.includes(title));
+    });
   }
 
+  const profile = selected?.[1];
   if (!profile) {
-    const customRoleTitle = targetRole.trim().charAt(0).toUpperCase() + targetRole.trim().slice(1);
-    const relevantInCatalog = SKILL_CATALOG.filter(s => {
-      const sName = s.name.toLowerCase();
-      return normRole.includes(sName) || sName.includes(normRole);
-    }).map(s => s.name);
-
-    profile = {
-      title: customRoleTitle,
-      category: 'Custom Target',
-      coreSkills: relevantInCatalog.length > 0 ? relevantInCatalog : ['Python', 'SQL', 'Git', 'REST API'],
-      recommendedSkills: ['Docker', 'CI/CD', 'System Design', 'Agile/Scrum'],
+    const customRoleTitle = (targetRole || 'Custom Role').trim()
+      .replace(/\s+/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    return {
+      roleTitle: customRoleTitle,
+      matchScore: 0,
+      matchedSkills: [],
+      missingSkills: [],
+      roleReadiness: 'Developing Fit',
       tailoringTips: [
-        `Tailor project descriptions to highlight deliverables relevant to ${customRoleTitle}.`,
-        'Demonstrate practical tool proficiency and business impact rather than passive participation.',
-        'Adopt domain-specific terminology throughout work experience bullet points.'
+        'Choose a supported target role or provide a job description for a role-specific comparison.',
+        'A role benchmark cannot be calculated reliably without defined role requirements.'
       ]
     };
   }
 
-  const allTargetSkills = Array.from(new Set([...profile.coreSkills, ...profile.recommendedSkills]));
-  const matchedSkills: string[] = [];
-  const missingSkills: string[] = [];
+  const canonicalSkills = (resumeSkills || []).map(normalize).filter(Boolean);
+  const text = ` ${normalize(resumeText || '')} `;
+  const hasSkill = (skill: string) => {
+    const needle = normalize(skill);
+    if (!needle) return false;
+    // Exact extracted-skill match first; word/phrase boundaries prevent
+    // false positives such as "java" matching "javascript".
+    return canonicalSkills.includes(needle) || text.includes(` ${needle} `);
+  };
 
-  for (const sk of allTargetSkills) {
-    const skLower = sk.toLowerCase();
-    if (lowerSkills.has(skLower) || lowerText.includes(skLower)) {
-      matchedSkills.push(sk);
-    } else {
-      missingSkills.push(sk);
-    }
-  }
+  const required = [...profile.coreSkills, ...profile.recommendedSkills];
+  const uniqueRequired = Array.from(new Map(required.map(skill => [normalize(skill), skill])).values());
+  const matchedSkills = uniqueRequired.filter(hasSkill);
+  const missingSkills = uniqueRequired.filter(skill => !hasSkill(skill));
+  const coreCount = profile.coreSkills.length;
+  const coreMatched = profile.coreSkills.filter(hasSkill).length;
+  const recommendedCount = profile.recommendedSkills.length;
+  const recommendedMatched = profile.recommendedSkills.filter(hasSkill).length;
 
-  const coreMatched = profile.coreSkills.filter(s => lowerSkills.has(s.toLowerCase()) || lowerText.includes(s.toLowerCase())).length;
-  const coreRatio = profile.coreSkills.length > 0 ? coreMatched / profile.coreSkills.length : 0.8;
-
-  const recMatched = profile.recommendedSkills.filter(s => lowerSkills.has(s.toLowerCase()) || lowerText.includes(s.toLowerCase())).length;
-  const recRatio = profile.recommendedSkills.length > 0 ? recMatched / profile.recommendedSkills.length : 0.6;
-
-  const rawScore = Math.round((coreRatio * 0.65 + recRatio * 0.35) * 100);
-  const matchScore = Math.max(35, Math.min(98, rawScore));
+  // Core requirements carry more weight. No artificial minimum score or
+  // maximum cap: the percentage reflects the actual matched requirements.
+  const coreRatio = coreCount ? coreMatched / coreCount : 0;
+  const recommendedRatio = recommendedCount ? recommendedMatched / recommendedCount : 0;
+  const matchScore = Math.round((coreRatio * 0.75 + recommendedRatio * 0.25) * 100);
 
   const roleReadiness: 'High Alignment' | 'Moderate Alignment' | 'Developing Fit' =
-    matchScore >= 80 ? 'High Alignment' : matchScore >= 60 ? 'Moderate Alignment' : 'Developing Fit';
+    matchScore >= 80 ? 'High Alignment' :
+    matchScore >= 60 ? 'Moderate Alignment' : 'Developing Fit';
 
   return {
     roleTitle: profile.title,
     matchScore,
     matchedSkills,
-    missingSkills: missingSkills.slice(0, 8),
+    missingSkills: missingSkills.slice(0, 12),
     roleReadiness,
-    tailoringTips: profile.tailoringTips,
+    tailoringTips: profile.tailoringTips
   };
 }
 
