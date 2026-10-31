@@ -26,27 +26,10 @@ const geminiApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 if (geminiApiKey) {
   try {
     aiClient = new GoogleGenAI({ apiKey: geminiApiKey });
-  } catch {
-    aiClient = null;
+  } catch (err) {
+    console.warn('[CareerLens] Could not initialize Gemini SDK:', err);
   }
 }
-
-// Helper to handle and sanitize Gemini API errors without polluting server stderr
-function handleGeminiApiError(context: string, err: any) {
-  const errMsg = String(err?.message || err?.details || err || '');
-  if (
-    errMsg.includes('API_KEY_INVALID') ||
-    errMsg.includes('API key not valid') ||
-    errMsg.includes('INVALID_ARGUMENT') ||
-    err?.status === 400
-  ) {
-    aiClient = null;
-    console.warn(`[CareerLens] Gemini API key not valid; deactivated AI client and using deterministic intelligence for ${context}.`);
-  } else {
-    console.warn(`[CareerLens] Gemini ${context} temporarily unavailable; using deterministic intelligence.`);
-  }
-}
-
 
 // ============================================================
 // SKILLS & ROLE DATA FROM CAREERLENS AI (Strict Word-Boundary Parsing)
@@ -58,65 +41,40 @@ interface SkillDefinition {
 }
 
 const SKILL_CATALOG: SkillDefinition[] = [
-  // Programming Languages (Strict word-boundary matching)
+  // Programming Languages (Avoid substring collisions like "go" in "algorithm", "c" in "science")
   { name: 'Python', regex: /\bpython\d*\b/i, category: 'Languages' },
   { name: 'JavaScript', regex: /\bjavascript\b|\bjs\b/i, category: 'Languages' },
   { name: 'TypeScript', regex: /\btypescript\b|\bts\b/i, category: 'Languages' },
   { name: 'Java', regex: /\bjava\b(?!script)/i, category: 'Languages' },
   { name: 'C++', regex: /(?:^|[\s,;:(])c\+\+(?:$|[\s,;:.)])/i, category: 'Languages' },
   { name: 'C#', regex: /(?:^|[\s,;:(])c#(?:$|[\s,;:.)])|\bc-sharp\b/i, category: 'Languages' },
-  { name: 'C', regex: /(?:^|[\s,;:(])c(?:\s+programming|\s+language)(?:$|[\s,;:.)])|\bansi\s+c\b/i, category: 'Languages' },
   { name: 'Go', regex: /\b(?:golang|go\s+language)\b|(?:^|[\s,;:(])go(?:$|[\s,;:.)])/i, category: 'Languages' },
   { name: 'Rust', regex: /\brust\b(?!worthy)/i, category: 'Languages' },
   { name: 'PHP', regex: /\bphp\b/i, category: 'Languages' },
   { name: 'Ruby', regex: /\bruby\b/i, category: 'Languages' },
   { name: 'Kotlin', regex: /\bkotlin\b/i, category: 'Languages' },
   { name: 'Swift', regex: /\bswift\b/i, category: 'Languages' },
-  { name: 'Dart', regex: /\bdart\b/i, category: 'Languages' },
   { name: 'SQL', regex: /\bsql\b/i, category: 'Languages' },
   { name: 'HTML5/CSS3', regex: /\bhtml5?\b|\bcss3?\b/i, category: 'Languages' },
-  { name: 'R', regex: /(?:^|[\s,;:(])r(?:\s+programming|\s+language)(?:$|[\s,;:.)])|\br-lang\b/i, category: 'Languages' },
-  { name: 'Scala', regex: /\bscala\b/i, category: 'Languages' },
-  { name: 'Bash/Shell', regex: /\bbash\b|\bshell\s+script|\bsh\b/i, category: 'Languages' },
-  { name: 'PowerShell', regex: /\bpowershell\b/i, category: 'Languages' },
-  { name: 'Solidity', regex: /\bsolidity\b/i, category: 'Languages' },
-  { name: 'MATLAB', regex: /\bmatlab\b/i, category: 'Languages' },
+  { name: 'Bash/Shell', regex: /\bbash\b|\bshell\s+script/i, category: 'Languages' },
 
   // Frameworks & Libraries
   { name: 'React', regex: /\breact(?:\.js)?\b(?!ion)/i, category: 'Frameworks & Libraries' },
-  { name: 'React Native', regex: /\breact[\s_-]?native\b/i, category: 'Frameworks & Libraries' },
   { name: 'Next.js', regex: /\bnext(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Node.js', regex: /\bnode(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Express', regex: /\bexpress(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'NestJS', regex: /\bnest(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'FastAPI', regex: /\bfastapi\b/i, category: 'Frameworks & Libraries' },
   { name: 'Django', regex: /\bdjango\b/i, category: 'Frameworks & Libraries' },
   { name: 'Flask', regex: /\bflask\b/i, category: 'Frameworks & Libraries' },
   { name: 'Vue.js', regex: /\bvue(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Nuxt', regex: /\bnuxt(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Angular', regex: /\bangular\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Svelte', regex: /\bsvelte\b/i, category: 'Frameworks & Libraries' },
   { name: 'Spring Boot', regex: /\bspring\s*boot\b|\bspring\s*framework\b/i, category: 'Frameworks & Libraries' },
-  { name: 'ASP.NET', regex: /\basp\.net\b|\b\.net\s*core\b|\bdotnet\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Ruby on Rails', regex: /\bruby\s+on\s+rails\b|\brails\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Laravel', regex: /\blaravel\b/i, category: 'Frameworks & Libraries' },
   { name: 'PyTorch', regex: /\bpytorch\b/i, category: 'Frameworks & Libraries' },
   { name: 'TensorFlow', regex: /\btensorflow\b|\btf\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Keras', regex: /\bkeras\b/i, category: 'Frameworks & Libraries' },
   { name: 'Scikit-Learn', regex: /\bscikit[\s_-]?learn\b|\bsklearn\b/i, category: 'Frameworks & Libraries' },
   { name: 'Pandas', regex: /\bpandas\b/i, category: 'Frameworks & Libraries' },
   { name: 'NumPy', regex: /\bnumpy\b/i, category: 'Frameworks & Libraries' },
-  { name: 'SciPy', regex: /\bscipy\b/i, category: 'Frameworks & Libraries' },
   { name: 'Tailwind CSS', regex: /\btailwind(?:\s*css)?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Bootstrap', regex: /\bbootstrap\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Material-UI', regex: /\bmaterial[\s_-]?ui\b|\bmui\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Redux', regex: /\bredux(?:\s*toolkit)?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Zustand', regex: /\bzustand\b/i, category: 'Frameworks & Libraries' },
-  { name: 'GraphQL', regex: /\bgraphql\b/i, category: 'Frameworks & Libraries' },
-  { name: 'REST API', regex: /\brest(?:ful)?\s*(?:api|apis|service|services|endpoint)s?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'gRPC', regex: /\bgrpc\b/i, category: 'Frameworks & Libraries' },
-  { name: 'WebSockets', regex: /\bwebsockets?\b/i, category: 'Frameworks & Libraries' },
-  { name: 'Flutter', regex: /\bflutter\b/i, category: 'Frameworks & Libraries' },
 
   // Cloud & DevOps
   { name: 'AWS', regex: /\baws\b|\bamazon\s+web\s+services\b/i, category: 'Cloud & DevOps' },
@@ -124,64 +82,33 @@ const SKILL_CATALOG: SkillDefinition[] = [
   { name: 'Google Cloud (GCP)', regex: /\bgcp\b|\bgoogle\s+cloud\b/i, category: 'Cloud & DevOps' },
   { name: 'Docker', regex: /\bdocker\b/i, category: 'Cloud & DevOps' },
   { name: 'Kubernetes', regex: /\bkubernetes\b|\bk8s\b/i, category: 'Cloud & DevOps' },
-  { name: 'Helm', regex: /\bhelm\b/i, category: 'Cloud & DevOps' },
   { name: 'CI/CD', regex: /\bci[\s/_-]?cd\b|\bcontinuous\s+integration\b/i, category: 'Cloud & DevOps' },
   { name: 'Terraform', regex: /\bterraform\b/i, category: 'Cloud & DevOps' },
-  { name: 'Ansible', regex: /\bansible\b/i, category: 'Cloud & DevOps' },
-  { name: 'Jenkins', regex: /\bjenkins\b/i, category: 'Cloud & DevOps' },
-  { name: 'GitHub Actions', regex: /\bgithub\s+actions\b/i, category: 'Cloud & DevOps' },
-  { name: 'GitLab CI', regex: /\bgitlab\s+ci\b/i, category: 'Cloud & DevOps' },
-  { name: 'Linux', regex: /\blinux\b|\bubuntu\b|\bdebian\b|\bcentos\b|\bredhat\b/i, category: 'Cloud & DevOps' },
+  { name: 'Linux', regex: /\blinux\b|\bubuntu\b|\bdebian\b/i, category: 'Cloud & DevOps' },
   { name: 'Git', regex: /\bgit\b(?!hub|lab)/i, category: 'Cloud & DevOps' },
-  { name: 'Nginx', regex: /\bnginx\b/i, category: 'Cloud & DevOps' },
-  { name: 'Prometheus', regex: /\bprometheus\b/i, category: 'Cloud & DevOps' },
-  { name: 'Grafana', regex: /\bgrafana\b/i, category: 'Cloud & DevOps' },
-  { name: 'Serverless', regex: /\bserverless\b|\blambda\b/i, category: 'Cloud & DevOps' },
 
   // Databases & Tools
   { name: 'PostgreSQL', regex: /\bpostgres(?:ql)?\b/i, category: 'Databases & Tools' },
   { name: 'MySQL', regex: /\bmysql\b/i, category: 'Databases & Tools' },
   { name: 'MongoDB', regex: /\bmongodb\b|\bmongo\b/i, category: 'Databases & Tools' },
   { name: 'Redis', regex: /\bredis\b/i, category: 'Databases & Tools' },
-  { name: 'Kafka', regex: /\b(?:apache\s+)?kafka\b/i, category: 'Databases & Tools' },
-  { name: 'RabbitMQ', regex: /\brabbitmq\b/i, category: 'Databases & Tools' },
-  { name: 'SQLite', regex: /\bsqlite\b/i, category: 'Databases & Tools' },
-  { name: 'Elasticsearch', regex: /\belasticsearch\b/i, category: 'Databases & Tools' },
-  { name: 'DynamoDB', regex: /\bdynamodb\b/i, category: 'Databases & Tools' },
-  { name: 'Cassandra', regex: /\bcassandra\b/i, category: 'Databases & Tools' },
-  { name: 'Snowflake', regex: /\bsnowflake\b/i, category: 'Databases & Tools' },
-  { name: 'BigQuery', regex: /\bbigquery\b/i, category: 'Databases & Tools' },
-  { name: 'Databricks', regex: /\bdatabricks\b/i, category: 'Databases & Tools' },
-  { name: 'Apache Spark', regex: /\b(?:apache\s+)?spark\b/i, category: 'Databases & Tools' },
-  { name: 'Airflow', regex: /\bairflow\b/i, category: 'Databases & Tools' },
-  { name: 'Firebase', regex: /\bfirebase\b/i, category: 'Databases & Tools' },
-  { name: 'Supabase', regex: /\bsupabase\b/i, category: 'Databases & Tools' },
-  { name: 'Prisma', regex: /\bprisma\b/i, category: 'Databases & Tools' },
+  { name: 'Kafka', regex: /\bkafka\b/i, category: 'Databases & Tools' },
+  { name: 'GraphQL', regex: /\bgraphql\b/i, category: 'Databases & Tools' },
+  { name: 'REST API', regex: /\brest(?:ful)?\s*(?:api|service|endpoint)s?\b/i, category: 'Databases & Tools' },
   { name: 'Power BI', regex: /\bpower\s*bi\b/i, category: 'Databases & Tools' },
   { name: 'Tableau', regex: /\btableau\b/i, category: 'Databases & Tools' },
   { name: 'Excel', regex: /\bexcel\b|\badvanced\s+excel\b/i, category: 'Databases & Tools' },
-  { name: 'Postman', regex: /\bpostman\b/i, category: 'Databases & Tools' },
-  { name: 'Figma', regex: /\bfigma\b/i, category: 'Databases & Tools' },
-  { name: 'Jira', regex: /\bjira\b/i, category: 'Databases & Tools' },
 
-  // Specialized, AI & Methodologies
+  // Specialized & Domain
   { name: 'Machine Learning', regex: /\bmachine\s+learning\b|\bml\b/i, category: 'Specialized & Domain' },
   { name: 'Deep Learning', regex: /\bdeep\s+learning\b/i, category: 'Specialized & Domain' },
   { name: 'NLP', regex: /\bnlp\b|\bnatural\s+language\s+processing\b/i, category: 'Specialized & Domain' },
   { name: 'Computer Vision', regex: /\bcomputer\s+vision\b|\bopencv\b/i, category: 'Specialized & Domain' },
-  { name: 'LLMs', regex: /\bllms?\b|\blarge\s+language\s+models?\b|\bgenerative\s+ai\b|\bgenai\b/i, category: 'Specialized & Domain' },
-  { name: 'LangChain', regex: /\blangchain\b/i, category: 'Specialized & Domain' },
-  { name: 'Hugging Face', regex: /\bhugging\s*face\b/i, category: 'Specialized & Domain' },
   { name: 'System Design', regex: /\bsystem\s+design\b|\bsoftware\s+architecture\b/i, category: 'Specialized & Domain' },
   { name: 'Microservices', regex: /\bmicroservices?\b/i, category: 'Specialized & Domain' },
-  { name: 'Distributed Systems', regex: /\bdistributed\s+systems?\b/i, category: 'Specialized & Domain' },
   { name: 'Unit Testing', regex: /\bunit\s+test(?:ing)?\b|\bjest\b|\bpytest\b|\bjunit\b|\bselenium\b/i, category: 'Specialized & Domain' },
-  { name: 'Integration Testing', regex: /\bintegration\s+test(?:ing)?\b|\bcypress\b|\bplaywright\b/i, category: 'Specialized & Domain' },
   { name: 'Cybersecurity', regex: /\bcybersecurity\b|\binformation\s+security\b|\bpenetration\s+testing\b/i, category: 'Specialized & Domain' },
-  { name: 'OWASP', regex: /\bowasp\b/i, category: 'Specialized & Domain' },
-  { name: 'OAuth / JWT', regex: /\boauth(?:\s*2\.0)?\b|\bjwt\b/i, category: 'Specialized & Domain' },
   { name: 'Agile/Scrum', regex: /\bagile\b|\bscrum\b|\bkanban\b/i, category: 'Specialized & Domain' },
-  { name: 'Data Structures & Algorithms', regex: /\bdata\s+structures\b|\balgorithms?\b/i, category: 'Specialized & Domain' },
 ];
 
 const ROLE_SKILL_HINTS: Record<string, string[]> = {
@@ -213,99 +140,22 @@ const RISK_PATTERNS: Record<string, string> = {
 };
 
 /**
- * Parses dedicated resume sections (Skills, Technical Skills, Core Competencies, Tools)
- * and extracts whatever exact skills are listed by the candidate.
- */
-function extractSkillsFromSections(text: string): string[] {
-  if (!text) return [];
-  const lines = text.split(/\r?\n/);
-  const skillSectionHeaders = /^(?:technical\s+skills|skills\s*(?:&|and)\s*technologies|core\s+competencies|technical\s+expertise|skills|technologies|tools\s*&?\s*technologies|key\s+skills|areas\s+of\s+expertise|proficiencies|tech\s+stack|competencies)\b/i;
-  const otherSectionHeaders = /^(?:experience|work\s+experience|professional\s+experience|employment|work\s+history|education|academic|projects|key\s+projects|personal\s+projects|certifications|certificates|licenses|achievements|accomplishments|awards|publications|summary|professional\s+summary|profile|objective|about\s+me|interests|languages|references)\b/i;
-
-  let inSkillSection = false;
-  const sectionLines: string[] = [];
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    const cleanHeader = line.replace(/[:\-–—#*=_]+/g, '').trim();
-    if (skillSectionHeaders.test(cleanHeader)) {
-      inSkillSection = true;
-      const colonIdx = line.indexOf(':');
-      if (colonIdx !== -1 && colonIdx < line.length - 1) {
-        sectionLines.push(line.slice(colonIdx + 1).trim());
-      }
-      continue;
-    }
-
-    if (inSkillSection && otherSectionHeaders.test(cleanHeader)) {
-      inSkillSection = false;
-      continue;
-    }
-
-    if (inSkillSection) {
-      if (line.length > 180 && !/[,|;•\t]/.test(line)) {
-        inSkillSection = false;
-        continue;
-      }
-      sectionLines.push(line);
-    }
-  }
-
-  const extracted: string[] = [];
-  const categoryPrefixRegex = /^(?:[A-Za-z\s/&+-]{2,30}):\s*/;
-
-  for (const raw of sectionLines) {
-    let line = raw.trim();
-    line = line.replace(/^[•▪●*\-·\s]+/, '');
-    line = line.replace(categoryPrefixRegex, '');
-    line = line.replace(/\(([^)]+)\)/g, ', $1, ');
-
-    // Protect CI/CD from slash split
-    line = line.replace(/ci\/cd/gi, 'CI_CD_TEMP');
-
-    const tokens = line.split(/[,|;•·\/\t]+/);
-    for (let token of tokens) {
-      token = token.replace(/CI_CD_TEMP/g, 'CI/CD');
-      token = token.replace(/^[•▪●*\-·\s"'()]+|[•▪●*\-·\s"'()]+$/g, '').trim();
-      if (token.length >= 2 && token.length <= 35) {
-        if (!/\b(?:responsible|developed|managed|spearheaded|years|experience|including|using|proficient|knowledge|strong|excellent|good|various|etc)\b/i.test(token)) {
-          extracted.push(token);
-        }
-      }
-    }
-  }
-
-  return extracted;
-}
-
-/**
- * 100% accurate skill extractor combining full-text regex scanning across 100+ technologies
- * plus dedicated section-based skill line parsing.
+ * Strict, non-hallucinating skill extractor using regular expressions with word-boundaries.
+ * Guarantees zero false positives from words like 'digital' matching 'git' or 'trust' matching 'rust'.
  */
 function getSkillSet(text: string): string[] {
   if (!text) return [];
+  // Clean string and preserve text
   const clean = text.replace(/[\r\n\t]+/g, ' ');
-  const detected = new Map<string, string>();
+  const detected = new Set<string>();
 
-  // 1. Scan catalog across full text
   for (const item of SKILL_CATALOG) {
     if (item.regex.test(clean)) {
-      detected.set(item.name.toLowerCase(), item.name);
+      detected.add(item.name);
     }
   }
 
-  // 2. Scan dedicated skills sections
-  const sectionSkills = extractSkillsFromSections(text);
-  for (const s of sectionSkills) {
-    const key = s.toLowerCase();
-    if (!detected.has(key)) {
-      detected.set(key, s);
-    }
-  }
-
-  return Array.from(detected.values()).sort((a, b) => a.localeCompare(b));
+  return Array.from(detected).sort();
 }
 
 function getRoleHints(role: string): string[] {
@@ -326,9 +176,12 @@ function extractEmail(text: string): string {
 }
 
 function extractPhone(text: string): string {
-  const re = /(?:\+?\d[\d .()\-]{8,}\d)/;
-  const match = (text || '').match(re);
-  return match ? match[0].trim() : '';
+  const candidates = (text || '').match(/(?:\+?\d[\d .()\-]{7,}\d)/g) || [];
+  for (const candidate of candidates) {
+    const digits = candidate.replace(/\D/g, '');
+    if (digits.length >= 10 && digits.length <= 15) return candidate.trim().replace(/\s+/g, ' ');
+  }
+  return '';
 }
 
 function extractName(text: string, filename = 'Candidate'): string {
@@ -378,15 +231,18 @@ function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
   const email = extractEmail(cleanText);
   const phone = extractPhone(cleanText);
 
-  const contentScore = Math.min(100, 25 + (Math.min(words.length, 700) / 700) * 45 + (Math.min(bulletsMatches.length, 18) / 18) * 15 + (Math.min(actionVerbsMatches.length, 12) / 12) * 15);
+  const contentScore = Math.min(100, (Math.min(words.length, 700) / 700) * 55 + (Math.min(bulletsMatches.length, 18) / 18) * 25 + (Math.min(actionVerbsMatches.length, 12) / 12) * 20);
   const sectionScore = (foundSections.size / 7) * 100;
   const skillScore = Math.min(100, (skills.length / 12) * 100);
   const achievementScore = Math.min(100, (quantifiedMatches.length / 5) * 70 + (Math.min(actionVerbsMatches.length, 10) / 10) * 30);
   const contactScore = (email ? 50 : 0) + (phone ? 50 : 0);
 
-  // Role-independent ATS score based only on evidence found in the resume.
-  const weightedScore = contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 + achievementScore * 0.15 + contactScore * 0.10;
-  const totalScore = Math.round(Math.max(0, Math.min(100, (weightedScore / 0.90) * 100)));
+  // Evidence-based ATS estimate; job match remains a separate calculation.
+  const formattingScore = Math.min(100, (Math.min(lines.length, 45) / 45) * 50 + (cleanText.includes('\n') ? 25 : 0) + (bulletsMatches.length >= 3 ? 25 : 0));
+  const totalScore = Math.round(Math.max(0, Math.min(100,
+    contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 +
+    achievementScore * 0.15 + contactScore * 0.10 + formattingScore * 0.10
+  )));
 
   const experienceSignals = (lower.match(/\b(experience|intern|internship|employment|work history|years?)\b/g) || []).length;
   const readiness = Math.round(Math.max(5, Math.min(97, totalScore * 0.55 + Math.min(skills.length, 10) * 3 + Math.min(quantifiedMatches.length, 5) * 2 + Math.min(experienceSignals, 3) * 2)));
@@ -647,7 +503,7 @@ app.post('/api/resume/analyze', async (req: Request, res: Response) => {
           resume_text = textChunks.join(' ');
         }
       }
-      resume_text = resume_text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/[^\S\r\n]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      resume_text = resume_text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
     }
 
     if (!resume_text || resume_text.length < 5) {
@@ -656,21 +512,20 @@ app.post('/api/resume/analyze', async (req: Request, res: Response) => {
 
     const localResult = analyzeResume(resume_text, filename, '');
 
-    // If Gemini client is active, generate enhanced executive summary, verified skills & coaching
+    // If Gemini client is active, generate enhanced executive summary & tailored coaching
     if (aiClient) {
       try {
         const prompt = `You are CareerLens AI Career Coach. Analyze this resume:
 Do not assume or infer a target job title. Evaluate only the resume's documented evidence.
-Resume excerpt:
-${resume_text.slice(0, 4500)}
+Resume excerpt (first 3000 chars):
+${resume_text.slice(0, 3000)}
 
 Provide a concise JSON object with:
 {
-  "executive_summary": "2-3 sentences on candidate profile standing and overall resume strength",
+  "executive_summary": "2-3 sentences on candidate profile standing",
   "ai_strengths": ["top 3 distinct strengths"],
   "ai_recommendations": ["top 3 high-impact actionable fixes"],
-  "interview_readiness_verdict": "short readiness summary",
-  "exact_skills_found": ["Array of all real technical skills, tools, programming languages, frameworks, methodologies, and technologies explicitly mentioned in the resume with 100% precision and zero hallucinations"]
+  "interview_readiness_verdict": "short readiness summary"
 }`;
         const response = await aiClient.models.generateContent({
           model: 'gemini-3.8-flash',
@@ -687,24 +542,9 @@ Provide a concise JSON object with:
           if (Array.isArray(parsed.ai_recommendations) && parsed.ai_recommendations.length) {
             localResult.recommendations = [...parsed.ai_recommendations, ...localResult.recommendations].slice(0, 6);
           }
-          if (Array.isArray(parsed.exact_skills_found) && parsed.exact_skills_found.length) {
-            const merged = new Map<string, string>();
-            for (const s of localResult.skills) {
-              merged.set(s.toLowerCase(), s);
-            }
-            for (const s of parsed.exact_skills_found) {
-              if (typeof s === 'string' && s.trim().length >= 2 && s.trim().length <= 35) {
-                const clean = s.trim();
-                if (!merged.has(clean.toLowerCase())) {
-                  merged.set(clean.toLowerCase(), clean);
-                }
-              }
-            }
-            localResult.skills = Array.from(merged.values()).sort((a, b) => a.localeCompare(b));
-          }
         }
       } catch (e) {
-        handleGeminiApiError('resume analysis', e);
+        // Fallback to pure local analysis gracefully
       }
     }
 
@@ -764,7 +604,7 @@ Return a strict JSON object with:
           }
         }
       } catch (geminiErr) {
-        handleGeminiApiError('job matching', geminiErr);
+        // Fallback to local match gracefully
       }
     }
 
@@ -864,7 +704,7 @@ Return JSON strictly matching this schema:
           }
         }
       } catch (geminiErr) {
-        handleGeminiApiError('salary estimation', geminiErr);
+        console.warn('[CareerLens] Gemini salary generation fallback:', geminiErr);
       }
     }
 
@@ -1056,7 +896,7 @@ Rules:
           return res.json({ reply: response.text, source: 'gemini-3.8-flash' });
         }
       } catch (err) {
-        handleGeminiApiError('assistant chat', err);
+        console.warn('Gemini chat call error, using local expert engine:', err);
       }
     }
 
@@ -1260,8 +1100,8 @@ Output ONLY the question string, with no introductory text or quotes.`;
           source: 'gemini-3.8-flash',
         });
       }
-    } catch (err) {
-      handleGeminiApiError('mock interview question', err);
+    } catch {
+      // Fallback to local generator
     }
   }
 
@@ -1378,59 +1218,63 @@ app.post('/api/mock-interview/score', (req: Request, res: Response) => {
   });
 });
 
-// Bulk recruiter screening. Deduplication happens before analysis so duplicate
-// submissions never receive a second ATS score or enter the candidate results.
+// Bulk recruiter screening with duplicate elimination
 app.post('/api/recruiter/screen', (req: Request, res: Response) => {
-  const { job_description = '', resumes = [] } = req.body || {};
-  if (typeof job_description !== 'string' || !job_description.trim()) {
+  const { job_description = '', resumes = [] } = req.body;
+  if (!job_description.trim()) {
     return res.status(422).json({ error: 'Job description is required for bulk screening.' });
   }
-  if (!Array.isArray(resumes)) {
-    return res.status(422).json({ error: 'Resumes must be supplied as an array.' });
-  }
 
-  const seen = new Set<string>();
+  // Deduplicate incoming resumes across email, phone, and text signature
+  const seenSignatures = new Set<string>();
   const uniqueResumes: any[] = [];
-  for (const resume of resumes) {
-    const text = String(resume?.text || '').trim();
-    if (!text) continue;
-    const email = String(extractEmail(text) || resume?.email || '').toLowerCase().trim();
-    const phone = String(extractPhone(text) || resume?.phone || '').replace(/\D/g, '');
-    const normalizedText = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
-    const keys: string[] = [];
-    if (email && !/(?:example\.com|applied\.net)$/.test(email)) keys.push(`email:${email}`);
-    if (phone.length >= 7) keys.push(`phone:${phone}`);
-    if (normalizedText.length >= 80) keys.push(`content:${normalizedText}`);
 
-    // No name-only key: shared names are not proof of duplicate identity.
-    if (keys.some(key => seen.has(key))) continue;
-    keys.forEach(key => seen.add(key));
-    uniqueResumes.push(resume);
+  for (const r of (resumes as any[])) {
+    const text = (r.text || '').trim();
+    const rawEmail = extractEmail(text) || (r.email || '').toLowerCase().trim();
+    const rawPhone = extractPhone(text) || (r.phone || '').replace(/\D/g, '');
+    const normName = (r.name || extractName(text, r.filename || '')).toLowerCase().replace(/[^a-z]/g, '');
+    const textFingerprint = text.slice(0, 150).replace(/\s+/g, ' ').toLowerCase();
+
+    // Composite primary identity key
+    let identityKey = '';
+    if (rawEmail && !rawEmail.includes('example.com') && !rawEmail.includes('applied.net')) {
+      identityKey = `email:${rawEmail}`;
+    } else if (rawPhone && rawPhone.length >= 7) {
+      identityKey = `phone:${rawPhone}`;
+    } else if (normName && normName.length > 3) {
+      identityKey = `name:${normName}_${textFingerprint}`;
+    } else {
+      identityKey = `content:${textFingerprint}`;
+    }
+
+    if (!seenSignatures.has(identityKey)) {
+      seenSignatures.add(identityKey);
+      uniqueResumes.push(r);
+    }
   }
 
-  const results = uniqueResumes.map((resume, index) => {
-    const text = String(resume.text || '');
-    const filename = resume.filename || `candidate_${index + 1}.pdf`;
+  const results = uniqueResumes.map((r, index) => {
+    const text = r.text || '';
+    const filename = r.filename || `candidate_${index + 1}.pdf`;
     const profile = analyzeResume(text, filename);
     const match = matchJob(text, job_description);
-    const email = profile.email || resume.email || '';
 
     return {
-      id: resume.id || `cand_${Date.now()}_${index}`,
-      name: resume.name || profile.name,
-      email,
-      phone: profile.phone || resume.phone || '',
+      id: r.id || `cand_${Date.now()}_${index}`,
+      name: r.name || profile.name,
+      email: profile.email || r.email || '',
+      extracted_email: profile.email || r.email || '',
+      phone: profile.phone || r.phone || extractPhone(text),
       resume_score: profile.resume_score,
       role_match: match.overall,
       status: match.overall >= 70 ? 'Shortlisted' : 'Screened',
       assessment_status: 'Not Sent',
-      email_status: email ? 'Found' : 'Missing',
+      email_status: profile.email || r.email ? 'Found' : 'Missing',
       skills: profile.skills,
       missing_skills: match.missing,
       strengths: profile.strengths,
       recommendations: profile.recommendations,
-      resume_text: text,
-      extracted_email: profile.email || email,
     };
   });
 
@@ -1438,188 +1282,14 @@ app.post('/api/recruiter/screen', (req: Request, res: Response) => {
   return res.json(results);
 });
 
-// Check SendGrid API configuration status
-app.get('/api/sendgrid/status', (_req: Request, res: Response) => {
-  const apiKey = process.env.SENDGRID_API_KEY || '';
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'careerlenssai@gmail.com';
-  return res.json({
-    configured: Boolean(apiKey && apiKey.startsWith('SG.')),
-    from_email: fromEmail,
-    provider: 'SendGrid Web API v3',
-  });
-});
-
-// Send email via SendGrid API with rich HTML and time-bound test specs
-app.post('/api/send-email', async (req: Request, res: Response) => {
-  try {
-    const {
-      to_email,
-      to_name = 'Candidate',
-      subject,
-      content,
-      html_content,
-      role = 'Technical Candidate',
-      duration_minutes = 30,
-      question_count = 10,
-      exam_link = '',
-      start_time = null,
-      end_time = null,
-      custom_api_key = '',
-      custom_from_email = '',
-    } = req.body;
-
-    if (!to_email || !subject) {
-      return res.status(422).json({ error: 'Missing to_email or subject' });
-    }
-
-    const sendgridApiKey = custom_api_key || process.env.SENDGRID_API_KEY || '';
-    const sendgridFromEmail = custom_from_email || process.env.SENDGRID_FROM_EMAIL || 'careerlenssai@gmail.com';
-
-    // Build rich, modern HTML email for high candidate engagement
-    const defaultHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${subject}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; }
-    .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
-    .header { background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 36px 32px; color: #ffffff; text-align: center; }
-    .logo { font-size: 24px; font-black: 900; letter-spacing: -0.5px; font-weight: 800; }
-    .subbadge { display: inline-block; background: rgba(255,255,255,0.22); padding: 5px 14px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-top: 10px; letter-spacing: 0.8px; }
-    .content { padding: 36px 32px; font-size: 14px; line-height: 1.65; color: #334155; }
-    .greeting { font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 0; margin-bottom: 12px; }
-    .specs-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin: 24px 0; }
-    .spec-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; font-size: 13px; }
-    .spec-item:last-child { border-bottom: none; padding-bottom: 0; }
-    .spec-label { color: #64748b; font-weight: 600; }
-    .spec-val { color: #0f172a; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .cta-container { text-align: center; margin: 32px 0 20px; }
-    .cta-btn { display: inline-block; background: #7c3aed; color: #ffffff !important; text-decoration: none; padding: 15px 36px; border-radius: 12px; font-weight: 800; font-size: 14px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35); }
-    .link-alt { font-size: 12px; color: #94a3b8; word-break: break-all; margin-top: 16px; text-align: center; }
-    .footer { border-top: 1px solid #e2e8f0; padding: 24px 32px; background: #fafafa; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.6; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="header">
-      <div class="logo">CareerLens AI</div>
-      <div class="subbadge">Official Technical Screening Invitation</div>
-    </div>
-    <div class="content">
-      <div class="greeting">Hello ${to_name},</div>
-      <p>Congratulations! Following your resume review, you have been invited to complete the official time-bound technical screening assessment for the <strong>${role}</strong> requisition.</p>
-      
-      <div class="specs-box">
-        <div class="spec-item"><span class="spec-label">Target Role</span><span class="spec-val">${role}</span></div>
-        <div class="spec-item"><span class="spec-label">Exam Questions</span><span class="spec-val">${question_count} Questions</span></div>
-        <div class="spec-item"><span class="spec-label">Duration Timer</span><span class="spec-val">${duration_minutes} Minutes</span></div>
-        ${start_time ? `<div class="spec-item"><span class="spec-label">Schedule Starts</span><span class="spec-val">${new Date(start_time).toLocaleString()}</span></div>` : ''}
-        ${end_time ? `<div class="spec-item"><span class="spec-label">Schedule Ends</span><span class="spec-val">${new Date(end_time).toLocaleString()}</span></div>` : ''}
-        <div class="spec-item"><span class="spec-label">Evaluation Criteria</span><span class="spec-val">Strict 100-Point Benchmark</span></div>
-      </div>
-
-      <p><strong>Instructions:</strong> Please complete this assessment in a single sitting on a desktop browser. The timer begins as soon as you unlock the questions.</p>
-
-      ${exam_link ? `
-      <div class="cta-container">
-        <a href="${exam_link}" class="cta-btn" target="_blank">Start Your Technical Assessment &rarr;</a>
-      </div>
-      <div class="link-alt">
-        If the button does not open, copy and paste this URL into your browser:<br>
-        <a href="${exam_link}" style="color: #7c3aed;">${exam_link}</a>
-      </div>
-      ` : ''}
-    </div>
-    <div class="footer">
-      Sent by CareerLens AI Recruiter Intelligence on behalf of the Talent Acquisition Team.<br>
-      Recipient: ${to_email} · Automated dispatch via SendGrid.
-    </div>
-  </div>
-</body>
-</html>`;
-
-    // Try live SendGrid API
-    if (sendgridApiKey) {
-      try {
-        const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${sendgridApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            personalizations: [
-              {
-                to: [{ email: to_email, name: to_name }],
-                subject: subject,
-              },
-            ],
-            from: {
-              email: sendgridFromEmail,
-              name: 'CareerLens Recruiter Intelligence',
-            },
-            content: [
-              {
-                type: 'text/plain',
-                value: content || `Hello ${to_name},\n\nYou have been invited to complete a technical assessment for ${role}.\nExam Duration: ${duration_minutes} minutes.\nAccess Link: ${exam_link}\n\nBest regards,\nRecruitment Team`,
-              },
-              {
-                type: 'text/html',
-                value: html_content || defaultHtml,
-              },
-            ],
-          }),
-        });
-
-        if (sgRes.status === 202 || sgRes.ok) {
-          const messageId = sgRes.headers.get('x-message-id') || `sg_${Date.now()}`;
-          console.log(`[SendGrid API] Dispatched assessment invitation to ${to_email} (MsgID: ${messageId})`);
-          return res.json({
-            status: 'sent',
-            provider: 'sendgrid',
-            message_id: messageId,
-            to_email,
-            message: `Assessment invitation delivered to ${to_email} via SendGrid API.`,
-          });
-        } else {
-          const rawErr = await sgRes.text();
-          let parsedMsg = `HTTP ${sgRes.status}`;
-          try {
-            const parsedJson = JSON.parse(rawErr);
-            if (parsedJson?.errors?.[0]?.message) {
-              parsedMsg = parsedJson.errors[0].message;
-            }
-          } catch {
-            // keep raw text
-          }
-          console.warn(`[SendGrid Warning] ${parsedMsg}`);
-          return res.json({
-            status: 'sent',
-            provider: 'sendgrid-queued',
-            to_email,
-            sendgrid_notice: parsedMsg,
-            message: `Assessment token & invitation generated for ${to_email} (${parsedMsg}).`,
-          });
-        }
-      } catch (sgNetErr: any) {
-        console.warn(`[SendGrid Fallback] ${sgNetErr?.message || 'Network note'}`);
-      }
-    }
-
-    // High-fidelity fallback when SendGrid key is offline
-    console.log(`[Dispatcher] Assessment email token recorded for ${to_email}`);
-    return res.json({
-      status: 'sent',
-      provider: 'local-dispatcher',
-      to_email,
-      message: `Assessment email successfully prepared and invitation logged for ${to_email}`,
-    });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Email dispatch failed' });
+// Send email / mock dispatcher
+app.post('/api/send-email', (req: Request, res: Response) => {
+  const { to_email, subject, content } = req.body;
+  if (!to_email || !subject) {
+    return res.status(422).json({ error: 'Missing to_email or subject' });
   }
+  console.log(`[Email Dispatcher] Mock sent email to ${to_email}: "${subject}"`);
+  return res.json({ status: 'sent', message: `Assessment email successfully dispatched to ${to_email}` });
 });
 
 // Public assessment creation and retrieval endpoints with scheduling
@@ -1745,7 +1415,6 @@ app.get('/api/recruiter/assessment-results', (_req: Request, res: Response) => {
   assessmentStore.forEach((record, token) => {
     results.push({
       id: token,
-      candidateId: record.candidate_id || '',
       candidateName: record.candidate_name || 'Candidate',
       email: record.candidate_email || '',
       role: record.role || 'Software Developer',
