@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ResumeAnalysis } from '../types';
-import { safeAnalyzeResume } from '../services/careerService';
+import { safeAnalyzeResume, getRoleHints } from '../services/careerService';
 import {
   FileText,
   Upload,
@@ -38,25 +38,31 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['txt', 'md'].includes(extension || '')) {
+      setError('For reliable text extraction, upload a .txt or .md file, or paste text copied from your PDF/DOCX resume.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('The resume text file must be smaller than 2 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
     setUploadedFileName(file.name);
     const reader = new FileReader();
     reader.onload = event => {
-      let text = (event.target?.result as string) || '';
-      // If PDF, extract readable text tokens and strip binary metadata
-      if (text.includes('%PDF-')) {
-        const textChunks: string[] = [];
-        const tjMatches = text.match(/\(([^()]+)\)/g) || [];
-        for (const m of tjMatches) {
-          const s = m.slice(1, -1).trim();
-          if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) textChunks.push(s);
-        }
-        if (textChunks.length > 5) {
-          text = textChunks.join(' ');
-        }
+      const text = String(event.target?.result || '').trim();
+      if (!text) {
+        setError('No readable text was found in this file. Please paste your resume text.');
+        setUploadedFileName(null);
+        return;
       }
-      text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
       setResumeText(text);
     };
+    reader.onerror = () => setError('The selected file could not be read. Please try another file or paste the resume text.');
     reader.readAsText(file);
   };
 
@@ -87,17 +93,18 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   const score = analysis ? analysis.resume_score : null;
   const readiness = analysis ? analysis.readiness : null;
 
-  // Compute skill gap analysis based on detected skills vs missing skills
+  // Compare detected resume keywords with the selected role's keyword checklist.
+  // This is keyword evidence, not a measure of actual skill proficiency.
   const skillsList = analysis?.skills || [];
   const missingSkillsList = analysis?.missing_skills || [];
-
-  const skillGapData = [
-    { skill: skillsList[0] || 'Core Languages', current: 85, required: 90 },
-    { skill: skillsList[1] || 'Frameworks', current: 75, required: 85 },
-    { skill: skillsList[2] || 'System Architecture', current: 65, required: 80 },
-    { skill: missingSkillsList[0] || 'Cloud & DevOps', current: 35, required: 75 },
-    { skill: missingSkillsList[1] || 'Testing & CI/CD', current: 40, required: 70 },
-  ];
+  const roleHints = getRoleHints(targetRole);
+  const skillGapData = (roleHints.length ? roleHints : [...skillsList, ...missingSkillsList])
+    .slice(0, 5)
+    .map(skill => ({
+      skill,
+      current: skillsList.some(item => item.toLowerCase() === skill.toLowerCase()) ? 100 : 0,
+      required: 100,
+    }));
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto selection:bg-blue-600 selection:text-white">
@@ -135,9 +142,9 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             {/* Drag & Drop Area */}
             <label className="flex-1 w-full border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 hover:bg-blue-50/20 transition">
               <Upload className="w-7 h-7 text-blue-600 mb-2" />
-              <div className="text-xs font-bold text-slate-800">Choose or drop your resume (PDF/TXT/DOCX)</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Click to browse local files</div>
-              <input type="file" accept=".txt,.md,.pdf,.docx" onChange={handleFileUpload} className="hidden" />
+              <div className="text-xs font-bold text-slate-800">Choose your resume text file (TXT/MD)</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">PDF/DOCX: copy the resume text and paste it below</div>
+              <input type="file" accept=".txt,.md" onChange={handleFileUpload} className="hidden" />
             </label>
 
             {/* Uploaded File Pill Card */}
@@ -425,11 +432,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded bg-blue-600" />
-                <span>Demonstrated</span>
+                <span>Keyword detected</span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded bg-blue-200" />
-                <span>Benchmark</span>
+                <span>Role keyword</span>
               </span>
             </div>
           </div>
@@ -459,8 +466,8 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
 
           <div className="text-[11px] text-slate-400 text-center pt-1">
             {hasAnalysis
-              ? 'Comparison of your indexed competencies against verified requisitions for ' + targetRole + '.'
-              : 'Scan your resume above to map your current proficiency against market requisitions.'}
+              ? 'Keyword presence in the resume compared with the selected role's keyword checklist.
+              : 'Run an analysis to compare detected resume keywords with the selected role.'}
           </div>
         </div>
       </div>
