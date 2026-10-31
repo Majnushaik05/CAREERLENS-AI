@@ -90,8 +90,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       const res = await safeEstimateSalary(overrideRole || salaryRole, salaryExp, salaryLoc);
       setSalaryResult(res);
-    } catch (e) {
-      console.warn('Salary estimate err:', e);
+    } catch {
+      // safeEstimateSalary already falls back to client-side calculator
     } finally {
       setSalaryLoading(false);
     }
@@ -175,7 +175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     try {
       const resultData = await safeAnalyzeResume(
         textToAnalyze,
-        targetRole,
+        '',
         'candidate_resume.txt'
       );
 

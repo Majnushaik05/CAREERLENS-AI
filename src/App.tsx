@@ -315,6 +315,7 @@ export const App: React.FC = () => {
               candidates={candidates}
               onNavigate={handleSelectTool}
               onClearCandidates={() => handleSetCandidates([])}
+              onUpdateCandidate={handleUpdateCandidate}
             />
           );
       }

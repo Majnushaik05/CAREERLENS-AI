@@ -69,6 +69,12 @@ export interface Candidate {
   test_token?: string;
   assessment_result?: AssessmentResult;
   notes?: string;
+  resume_text?: string;
+  extracted_email?: string;
+  email_source?: 'resume' | 'manual';
+  last_dispatched_at?: string;
+  sendgrid_message_id?: string;
+  submitted_at?: string;
 }
 
 export interface HiringCampaign {

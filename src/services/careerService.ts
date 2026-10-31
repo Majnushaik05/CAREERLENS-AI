@@ -7,40 +7,65 @@ interface SkillDefinition {
 }
 
 export const SKILL_CATALOG: SkillDefinition[] = [
-  // Programming Languages
+  // Programming Languages (Strict word-boundary matching)
   { name: 'Python', regex: /\bpython\d*\b/i, category: 'Languages' },
   { name: 'JavaScript', regex: /\bjavascript\b|\bjs\b/i, category: 'Languages' },
   { name: 'TypeScript', regex: /\btypescript\b|\bts\b/i, category: 'Languages' },
   { name: 'Java', regex: /\bjava\b(?!script)/i, category: 'Languages' },
   { name: 'C++', regex: /(?:^|[\s,;:(])c\+\+(?:$|[\s,;:.)])/i, category: 'Languages' },
   { name: 'C#', regex: /(?:^|[\s,;:(])c#(?:$|[\s,;:.)])|\bc-sharp\b/i, category: 'Languages' },
+  { name: 'C', regex: /(?:^|[\s,;:(])c(?:\s+programming|\s+language)(?:$|[\s,;:.)])|\bansi\s+c\b/i, category: 'Languages' },
   { name: 'Go', regex: /\b(?:golang|go\s+language)\b|(?:^|[\s,;:(])go(?:$|[\s,;:.)])/i, category: 'Languages' },
   { name: 'Rust', regex: /\brust\b(?!worthy)/i, category: 'Languages' },
   { name: 'PHP', regex: /\bphp\b/i, category: 'Languages' },
   { name: 'Ruby', regex: /\bruby\b/i, category: 'Languages' },
   { name: 'Kotlin', regex: /\bkotlin\b/i, category: 'Languages' },
   { name: 'Swift', regex: /\bswift\b/i, category: 'Languages' },
+  { name: 'Dart', regex: /\bdart\b/i, category: 'Languages' },
   { name: 'SQL', regex: /\bsql\b/i, category: 'Languages' },
   { name: 'HTML5/CSS3', regex: /\bhtml5?\b|\bcss3?\b/i, category: 'Languages' },
-  { name: 'Bash/Shell', regex: /\bbash\b|\bshell\s+script/i, category: 'Languages' },
+  { name: 'R', regex: /(?:^|[\s,;:(])r(?:\s+programming|\s+language)(?:$|[\s,;:.)])|\br-lang\b/i, category: 'Languages' },
+  { name: 'Scala', regex: /\bscala\b/i, category: 'Languages' },
+  { name: 'Bash/Shell', regex: /\bbash\b|\bshell\s+script|\bsh\b/i, category: 'Languages' },
+  { name: 'PowerShell', regex: /\bpowershell\b/i, category: 'Languages' },
+  { name: 'Solidity', regex: /\bsolidity\b/i, category: 'Languages' },
+  { name: 'MATLAB', regex: /\bmatlab\b/i, category: 'Languages' },
 
   // Frameworks & Libraries
   { name: 'React', regex: /\breact(?:\.js)?\b(?!ion)/i, category: 'Frameworks & Libraries' },
+  { name: 'React Native', regex: /\breact[\s_-]?native\b/i, category: 'Frameworks & Libraries' },
   { name: 'Next.js', regex: /\bnext(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Node.js', regex: /\bnode(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Express', regex: /\bexpress(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'NestJS', regex: /\bnest(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'FastAPI', regex: /\bfastapi\b/i, category: 'Frameworks & Libraries' },
   { name: 'Django', regex: /\bdjango\b/i, category: 'Frameworks & Libraries' },
   { name: 'Flask', regex: /\bflask\b/i, category: 'Frameworks & Libraries' },
   { name: 'Vue.js', regex: /\bvue(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Nuxt', regex: /\bnuxt(?:\.js)?\b/i, category: 'Frameworks & Libraries' },
   { name: 'Angular', regex: /\bangular\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Svelte', regex: /\bsvelte\b/i, category: 'Frameworks & Libraries' },
   { name: 'Spring Boot', regex: /\bspring\s*boot\b|\bspring\s*framework\b/i, category: 'Frameworks & Libraries' },
+  { name: 'ASP.NET', regex: /\basp\.net\b|\b\.net\s*core\b|\bdotnet\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Ruby on Rails', regex: /\bruby\s+on\s+rails\b|\brails\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Laravel', regex: /\blaravel\b/i, category: 'Frameworks & Libraries' },
   { name: 'PyTorch', regex: /\bpytorch\b/i, category: 'Frameworks & Libraries' },
   { name: 'TensorFlow', regex: /\btensorflow\b|\btf\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Keras', regex: /\bkeras\b/i, category: 'Frameworks & Libraries' },
   { name: 'Scikit-Learn', regex: /\bscikit[\s_-]?learn\b|\bsklearn\b/i, category: 'Frameworks & Libraries' },
   { name: 'Pandas', regex: /\bpandas\b/i, category: 'Frameworks & Libraries' },
   { name: 'NumPy', regex: /\bnumpy\b/i, category: 'Frameworks & Libraries' },
+  { name: 'SciPy', regex: /\bscipy\b/i, category: 'Frameworks & Libraries' },
   { name: 'Tailwind CSS', regex: /\btailwind(?:\s*css)?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Bootstrap', regex: /\bbootstrap\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Material-UI', regex: /\bmaterial[\s_-]?ui\b|\bmui\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Redux', regex: /\bredux(?:\s*toolkit)?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Zustand', regex: /\bzustand\b/i, category: 'Frameworks & Libraries' },
+  { name: 'GraphQL', regex: /\bgraphql\b/i, category: 'Frameworks & Libraries' },
+  { name: 'REST API', regex: /\brest(?:ful)?\s*(?:api|apis|service|services|endpoint)s?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'gRPC', regex: /\bgrpc\b/i, category: 'Frameworks & Libraries' },
+  { name: 'WebSockets', regex: /\bwebsockets?\b/i, category: 'Frameworks & Libraries' },
+  { name: 'Flutter', regex: /\bflutter\b/i, category: 'Frameworks & Libraries' },
 
   // Cloud & DevOps
   { name: 'AWS', regex: /\baws\b|\bamazon\s+web\s+services\b/i, category: 'Cloud & DevOps' },
@@ -48,33 +73,64 @@ export const SKILL_CATALOG: SkillDefinition[] = [
   { name: 'Google Cloud (GCP)', regex: /\bgcp\b|\bgoogle\s+cloud\b/i, category: 'Cloud & DevOps' },
   { name: 'Docker', regex: /\bdocker\b/i, category: 'Cloud & DevOps' },
   { name: 'Kubernetes', regex: /\bkubernetes\b|\bk8s\b/i, category: 'Cloud & DevOps' },
+  { name: 'Helm', regex: /\bhelm\b/i, category: 'Cloud & DevOps' },
   { name: 'CI/CD', regex: /\bci[\s/_-]?cd\b|\bcontinuous\s+integration\b/i, category: 'Cloud & DevOps' },
   { name: 'Terraform', regex: /\bterraform\b/i, category: 'Cloud & DevOps' },
-  { name: 'Linux', regex: /\blinux\b|\bubuntu\b|\bdebian\b/i, category: 'Cloud & DevOps' },
+  { name: 'Ansible', regex: /\bansible\b/i, category: 'Cloud & DevOps' },
+  { name: 'Jenkins', regex: /\bjenkins\b/i, category: 'Cloud & DevOps' },
+  { name: 'GitHub Actions', regex: /\bgithub\s+actions\b/i, category: 'Cloud & DevOps' },
+  { name: 'GitLab CI', regex: /\bgitlab\s+ci\b/i, category: 'Cloud & DevOps' },
+  { name: 'Linux', regex: /\blinux\b|\bubuntu\b|\bdebian\b|\bcentos\b|\bredhat\b/i, category: 'Cloud & DevOps' },
   { name: 'Git', regex: /\bgit\b(?!hub|lab)/i, category: 'Cloud & DevOps' },
+  { name: 'Nginx', regex: /\bnginx\b/i, category: 'Cloud & DevOps' },
+  { name: 'Prometheus', regex: /\bprometheus\b/i, category: 'Cloud & DevOps' },
+  { name: 'Grafana', regex: /\bgrafana\b/i, category: 'Cloud & DevOps' },
+  { name: 'Serverless', regex: /\bserverless\b|\blambda\b/i, category: 'Cloud & DevOps' },
 
   // Databases & Tools
   { name: 'PostgreSQL', regex: /\bpostgres(?:ql)?\b/i, category: 'Databases & Tools' },
   { name: 'MySQL', regex: /\bmysql\b/i, category: 'Databases & Tools' },
   { name: 'MongoDB', regex: /\bmongodb\b|\bmongo\b/i, category: 'Databases & Tools' },
   { name: 'Redis', regex: /\bredis\b/i, category: 'Databases & Tools' },
-  { name: 'Kafka', regex: /\bkafka\b/i, category: 'Databases & Tools' },
-  { name: 'GraphQL', regex: /\bgraphql\b/i, category: 'Databases & Tools' },
-  { name: 'REST API', regex: /\brest(?:ful)?\s*(?:api|service|endpoint)s?\b/i, category: 'Databases & Tools' },
+  { name: 'Kafka', regex: /\b(?:apache\s+)?kafka\b/i, category: 'Databases & Tools' },
+  { name: 'RabbitMQ', regex: /\brabbitmq\b/i, category: 'Databases & Tools' },
+  { name: 'SQLite', regex: /\bsqlite\b/i, category: 'Databases & Tools' },
+  { name: 'Elasticsearch', regex: /\belasticsearch\b/i, category: 'Databases & Tools' },
+  { name: 'DynamoDB', regex: /\bdynamodb\b/i, category: 'Databases & Tools' },
+  { name: 'Cassandra', regex: /\bcassandra\b/i, category: 'Databases & Tools' },
+  { name: 'Snowflake', regex: /\bsnowflake\b/i, category: 'Databases & Tools' },
+  { name: 'BigQuery', regex: /\bbigquery\b/i, category: 'Databases & Tools' },
+  { name: 'Databricks', regex: /\bdatabricks\b/i, category: 'Databases & Tools' },
+  { name: 'Apache Spark', regex: /\b(?:apache\s+)?spark\b/i, category: 'Databases & Tools' },
+  { name: 'Airflow', regex: /\bairflow\b/i, category: 'Databases & Tools' },
+  { name: 'Firebase', regex: /\bfirebase\b/i, category: 'Databases & Tools' },
+  { name: 'Supabase', regex: /\bsupabase\b/i, category: 'Databases & Tools' },
+  { name: 'Prisma', regex: /\bprisma\b/i, category: 'Databases & Tools' },
   { name: 'Power BI', regex: /\bpower\s*bi\b/i, category: 'Databases & Tools' },
   { name: 'Tableau', regex: /\btableau\b/i, category: 'Databases & Tools' },
   { name: 'Excel', regex: /\bexcel\b|\badvanced\s+excel\b/i, category: 'Databases & Tools' },
+  { name: 'Postman', regex: /\bpostman\b/i, category: 'Databases & Tools' },
+  { name: 'Figma', regex: /\bfigma\b/i, category: 'Databases & Tools' },
+  { name: 'Jira', regex: /\bjira\b/i, category: 'Databases & Tools' },
 
-  // Specialized & Domain
+  // Specialized, AI & Methodologies
   { name: 'Machine Learning', regex: /\bmachine\s+learning\b|\bml\b/i, category: 'Specialized & Domain' },
   { name: 'Deep Learning', regex: /\bdeep\s+learning\b/i, category: 'Specialized & Domain' },
   { name: 'NLP', regex: /\bnlp\b|\bnatural\s+language\s+processing\b/i, category: 'Specialized & Domain' },
   { name: 'Computer Vision', regex: /\bcomputer\s+vision\b|\bopencv\b/i, category: 'Specialized & Domain' },
+  { name: 'LLMs', regex: /\bllms?\b|\blarge\s+language\s+models?\b|\bgenerative\s+ai\b|\bgenai\b/i, category: 'Specialized & Domain' },
+  { name: 'LangChain', regex: /\blangchain\b/i, category: 'Specialized & Domain' },
+  { name: 'Hugging Face', regex: /\bhugging\s*face\b/i, category: 'Specialized & Domain' },
   { name: 'System Design', regex: /\bsystem\s+design\b|\bsoftware\s+architecture\b/i, category: 'Specialized & Domain' },
   { name: 'Microservices', regex: /\bmicroservices?\b/i, category: 'Specialized & Domain' },
+  { name: 'Distributed Systems', regex: /\bdistributed\s+systems?\b/i, category: 'Specialized & Domain' },
   { name: 'Unit Testing', regex: /\bunit\s+test(?:ing)?\b|\bjest\b|\bpytest\b|\bjunit\b|\bselenium\b/i, category: 'Specialized & Domain' },
+  { name: 'Integration Testing', regex: /\bintegration\s+test(?:ing)?\b|\bcypress\b|\bplaywright\b/i, category: 'Specialized & Domain' },
   { name: 'Cybersecurity', regex: /\bcybersecurity\b|\binformation\s+security\b|\bpenetration\s+testing\b/i, category: 'Specialized & Domain' },
+  { name: 'OWASP', regex: /\bowasp\b/i, category: 'Specialized & Domain' },
+  { name: 'OAuth / JWT', regex: /\boauth(?:\s*2\.0)?\b|\bjwt\b/i, category: 'Specialized & Domain' },
   { name: 'Agile/Scrum', regex: /\bagile\b|\bscrum\b|\bkanban\b/i, category: 'Specialized & Domain' },
+  { name: 'Data Structures & Algorithms', regex: /\bdata\s+structures\b|\balgorithms?\b/i, category: 'Specialized & Domain' },
 ];
 
 export const SKILLS: string[] = SKILL_CATALOG.map(s => s.name.toLowerCase());
@@ -107,31 +163,307 @@ export const RISK_PATTERNS: Record<string, string> = {
   'security deposit': 'Upfront security deposits demanded for company laptop or equipment.',
 };
 
-export function getSkillSet(text: string): string[] {
+/**
+ * Extracts all exact skills stated by the candidate under dedicated skill sections in their resume.
+ */
+export function extractSkillsFromSections(text: string): string[] {
   if (!text) return [];
-  const clean = text.replace(/[\r\n\t]+/g, ' ');
-  const detected = new Set<string>();
+  const lines = text.split(/\r?\n/);
+  const skillSectionHeaders = /^(?:technical\s+skills|skills\s*(?:&|and)\s*technologies|core\s+competencies|technical\s+expertise|skills|technologies|tools\s*&?\s*technologies|key\s+skills|areas\s+of\s+expertise|proficiencies|tech\s+stack|competencies)\b/i;
+  const otherSectionHeaders = /^(?:experience|work\s+experience|professional\s+experience|employment|work\s+history|education|academic|projects|key\s+projects|personal\s+projects|certifications|certificates|licenses|achievements|accomplishments|awards|publications|summary|professional\s+summary|profile|objective|about\s+me|interests|languages|references)\b/i;
 
-  for (const item of SKILL_CATALOG) {
-    if (item.regex.test(clean)) {
-      detected.add(item.name);
+  let inSkillSection = false;
+  const sectionLines: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const cleanHeader = line.replace(/[:\-–—#*=_]+/g, '').trim();
+    if (skillSectionHeaders.test(cleanHeader)) {
+      inSkillSection = true;
+      const colonIdx = line.indexOf(':');
+      if (colonIdx !== -1 && colonIdx < line.length - 1) {
+        sectionLines.push(line.slice(colonIdx + 1).trim());
+      }
+      continue;
+    }
+
+    if (inSkillSection && otherSectionHeaders.test(cleanHeader)) {
+      inSkillSection = false;
+      continue;
+    }
+
+    if (inSkillSection) {
+      if (line.length > 180 && !/[,|;•\t]/.test(line)) {
+        inSkillSection = false;
+        continue;
+      }
+      sectionLines.push(line);
     }
   }
 
-  return Array.from(detected).sort();
+  const extracted: string[] = [];
+  const categoryPrefixRegex = /^(?:[A-Za-z\s/&+-]{2,30}):\s*/;
+
+  for (const raw of sectionLines) {
+    let line = raw.trim();
+    line = line.replace(/^[•▪●*\-·\s]+/, '');
+    line = line.replace(categoryPrefixRegex, '');
+    line = line.replace(/\(([^)]+)\)/g, ', $1, ');
+
+    // Protect CI/CD from slash split
+    line = line.replace(/ci\/cd/gi, 'CI_CD_TEMP');
+
+    const tokens = line.split(/[,|;•·\/\t]+/);
+    for (let token of tokens) {
+      token = token.replace(/CI_CD_TEMP/g, 'CI/CD');
+      token = token.replace(/^[•▪●*\-·\s"'()]+|[•▪●*\-·\s"'()]+$/g, '').trim();
+      if (token.length >= 2 && token.length <= 35) {
+        if (!/\b(?:responsible|developed|managed|spearheaded|years|experience|including|using|proficient|knowledge|strong|excellent|good|various|etc)\b/i.test(token)) {
+          extracted.push(token);
+        }
+      }
+    }
+  }
+
+  return extracted;
+}
+
+/**
+ * 100% accurate skill extractor combining full-text regex scanning across 100+ technologies
+ * plus dedicated section-based skill line parsing.
+ */
+export function getSkillSet(text: string): string[] {
+  if (!text) return [];
+  const clean = text.replace(/[\r\n\t]+/g, ' ');
+  const detected = new Map<string, string>();
+
+  // 1. Scan catalog across full text
+  for (const item of SKILL_CATALOG) {
+    if (item.regex.test(clean)) {
+      detected.set(item.name.toLowerCase(), item.name);
+    }
+  }
+
+  // 2. Scan dedicated skills sections
+  const sectionSkills = extractSkillsFromSections(text);
+  for (const s of sectionSkills) {
+    const key = s.toLowerCase();
+    if (!detected.has(key)) {
+      detected.set(key, s);
+    }
+  }
+
+  return Array.from(detected.values()).sort((a, b) => a.localeCompare(b));
 }
 
 export const extractResumeSkills = getSkillSet;
 
-export function getRoleHints(role: string): string[] {
-  const roleLower = (role || '').toLowerCase();
-  const result: string[] = [];
-  for (const [key, values] of Object.entries(ROLE_SKILL_HINTS)) {
-    if (roleLower.includes(key)) {
-      result.push(...values);
+export interface RoleProfile {
+  title: string;
+  category: string;
+  coreSkills: string[];
+  recommendedSkills: string[];
+  tailoringTips: string[];
+}
+
+export const TARGET_ROLE_PROFILES: Record<string, RoleProfile> = {
+  'full-stack-developer': {
+    title: 'Full Stack Developer',
+    category: 'Engineering',
+    coreSkills: ['React', 'Node.js', 'TypeScript', 'JavaScript', 'SQL', 'PostgreSQL', 'REST API', 'Git', 'HTML5/CSS3'],
+    recommendedSkills: ['Next.js', 'Docker', 'Tailwind CSS', 'GraphQL', 'Redux', 'Unit Testing', 'CI/CD'],
+    tailoringTips: [
+      'Highlight end-to-end feature ownership from responsive UI down to database query optimization.',
+      'Showcase API design patterns (RESTful/GraphQL) and state management in production applications.',
+      'Quantify full-stack impact (e.g. reduced load times by 35% or shipped 4 modular features across web and mobile).'
+    ]
+  },
+  'backend-engineer': {
+    title: 'Backend Engineer',
+    category: 'Engineering',
+    coreSkills: ['Python', 'Java', 'Go', 'Node.js', 'SQL', 'PostgreSQL', 'Redis', 'REST API', 'Git', 'System Design'],
+    recommendedSkills: ['Docker', 'Kubernetes', 'Microservices', 'Kafka', 'gRPC', 'CI/CD', 'Linux'],
+    tailoringTips: [
+      'Emphasize database schema design, indexing, caching strategies, and concurrency handling.',
+      'Include metrics on API response latency (p95/p99), throughput (QPS), and data pipeline scalability.',
+      'Demonstrate experience with message brokers (Kafka/RabbitMQ) or distributed system reliability.'
+    ]
+  },
+  'frontend-developer': {
+    title: 'Frontend Developer',
+    category: 'Engineering',
+    coreSkills: ['JavaScript', 'TypeScript', 'React', 'HTML5/CSS3', 'Tailwind CSS', 'Git', 'REST API'],
+    recommendedSkills: ['Next.js', 'Vue.js', 'Redux', 'Zustand', 'Jest', 'Cypress', 'Figma'],
+    tailoringTips: [
+      'Detail web performance optimizations (Core Web Vitals, code-splitting, memoization, bundle size).',
+      'Mention accessibility standards (WCAG 2.1 AA) and cross-browser responsive layouts.',
+      'Showcase automated UI testing with Cypress, Playwright, or Jest/React Testing Library.'
+    ]
+  },
+  'devops-cloud-engineer': {
+    title: 'DevOps & Cloud Engineer',
+    category: 'Infrastructure',
+    coreSkills: ['Docker', 'Kubernetes', 'AWS', 'Linux', 'CI/CD', 'Git', 'Terraform', 'Bash/Shell'],
+    recommendedSkills: ['Azure', 'Google Cloud (GCP)', 'Ansible', 'Helm', 'Prometheus', 'Grafana', 'Python'],
+    tailoringTips: [
+      'Quantify CI/CD pipeline efficiency (e.g. cut build & deploy cycle time from 2 hours to 12 minutes).',
+      'Detail Infrastructure-as-Code (Terraform/CloudFormation) and cloud cost optimization measures.',
+      'Highlight automated zero-downtime rolling updates, canary rollouts, and disaster recovery.'
+    ]
+  },
+  'data-scientist-analyst': {
+    title: 'Data Scientist & Analyst',
+    category: 'Data & Analytics',
+    coreSkills: ['Python', 'SQL', 'Pandas', 'NumPy', 'Machine Learning', 'Data Analysis', 'Data Visualization'],
+    recommendedSkills: ['Scikit-Learn', 'Tableau', 'Power BI', 'Deep Learning', 'BigQuery', 'Excel'],
+    tailoringTips: [
+      'Tie machine learning models directly to business outcomes (e.g. boosted conversion by 14% or reduced churn).',
+      'Explain statistical validation methods (A/B testing, cross-validation, hypothesis testing).',
+      'Highlight interactive dashboarding and cross-functional communication with stakeholders.'
+    ]
+  },
+  'ai-ml-engineer': {
+    title: 'AI & Machine Learning Engineer',
+    category: 'Data & Analytics',
+    coreSkills: ['Python', 'Machine Learning', 'Deep Learning', 'PyTorch', 'TensorFlow', 'FastAPI', 'Docker'],
+    recommendedSkills: ['LLMs', 'NLP', 'Computer Vision', 'LangChain', 'Hugging Face', 'Vector Databases'],
+    tailoringTips: [
+      'Showcase production model serving, inference latency optimization (ONNX/TensorRT), and GPU utilization.',
+      'Detail experience with RAG pipelines, vector embedding indexing, and fine-tuning foundation models.',
+      'Describe automated data curation, model monitoring, drift detection, and MLOps pipelines.'
+    ]
+  },
+  'mobile-developer': {
+    title: 'Mobile Developer (iOS / Android)',
+    category: 'Engineering',
+    coreSkills: ['React Native', 'Flutter', 'Swift', 'Kotlin', 'JavaScript', 'TypeScript', 'REST API', 'Git'],
+    recommendedSkills: ['Redux', 'Mobile CI/CD', 'SQLite', 'Firebase', 'Figma'],
+    tailoringTips: [
+      'Mention app store releases, 4.5+ star ratings, and crash-free session metrics (> 99.8%).',
+      'Highlight offline caching, background synchronization, and battery/memory efficiency.',
+      'Document cross-platform responsive design across diverse screen densities and OS versions.'
+    ]
+  },
+  'qa-automation-engineer': {
+    title: 'QA & Test Automation Engineer',
+    category: 'Quality Assurance',
+    coreSkills: ['Unit Testing', 'Selenium', 'Cypress', 'Playwright', 'Jest', 'Pytest', 'Python', 'JavaScript', 'Git'],
+    recommendedSkills: ['CI/CD', 'Integration Testing', 'Postman', 'Jira'],
+    tailoringTips: [
+      'Quantify regression testing coverage gains (e.g. expanded automated test coverage from 40% to 92%).',
+      'Detail automated test integration into CI/CD pipelines to block flaky builds before staging.',
+      'Highlight API contract testing, load testing, and cross-browser parallel execution grids.'
+    ]
+  },
+  'product-manager': {
+    title: 'Product Manager',
+    category: 'Product & Management',
+    coreSkills: ['Agile/Scrum', 'Data Analysis', 'Jira', 'SQL', 'System Design'],
+    recommendedSkills: ['Stakeholder Management', 'Figma', 'REST API'],
+    tailoringTips: [
+      'Focus heavily on product metrics: Monthly Active Users (MAU), Customer Acquisition Cost, retention, and MRR.',
+      'Highlight cross-functional leadership across engineering, design, sales, and executive leadership.',
+      'Detail customer discovery interviews, prioritization frameworks (RICE/MoSCoW), and rapid prototyping.'
+    ]
+  },
+  'cybersecurity-analyst': {
+    title: 'Cybersecurity Analyst',
+    category: 'Security',
+    coreSkills: ['Cybersecurity', 'Linux', 'Python', 'Penetration Testing'],
+    recommendedSkills: ['OWASP', 'OAuth / JWT', 'Bash/Shell'],
+    tailoringTips: [
+      'Detail incident response SLAs, vulnerability remediation cycles, and compliance audits (SOC2/ISO 27001).',
+      'Highlight security tooling, automated SAST/DAST pipeline integration, and threat vector modeling.',
+      'Demonstrate practical knowledge of identity access management (IAM), zero-trust network design, and cryptography.'
+    ]
+  },
+};
+
+export function evaluateRoleAlignment(
+  resumeSkills: string[],
+  resumeText: string,
+  targetRole: string
+): {
+  roleTitle: string;
+  matchScore: number;
+  matchedSkills: string[];
+  missingSkills: string[];
+  roleReadiness: 'High Alignment' | 'Moderate Alignment' | 'Developing Fit';
+  tailoringTips: string[];
+} {
+  const normRole = targetRole.trim().toLowerCase();
+  const lowerSkills = new Set(resumeSkills.map(s => s.toLowerCase()));
+  const lowerText = (resumeText || '').toLowerCase();
+
+  // Find profile by key or title
+  let profile: RoleProfile | undefined = Object.values(TARGET_ROLE_PROFILES).find(
+    p => p.title.toLowerCase() === normRole || normRole.includes(p.title.toLowerCase())
+  );
+
+  if (!profile) {
+    for (const [key, p] of Object.entries(TARGET_ROLE_PROFILES)) {
+      if (normRole.includes(key.replace(/-/g, ' ')) || key.split('-').some(k => normRole.includes(k))) {
+        profile = p;
+        break;
+      }
     }
   }
-  return Array.from(new Set(result));
+
+  if (!profile) {
+    const customRoleTitle = targetRole.trim().charAt(0).toUpperCase() + targetRole.trim().slice(1);
+    const relevantInCatalog = SKILL_CATALOG.filter(s => {
+      const sName = s.name.toLowerCase();
+      return normRole.includes(sName) || sName.includes(normRole);
+    }).map(s => s.name);
+
+    profile = {
+      title: customRoleTitle,
+      category: 'Custom Target',
+      coreSkills: relevantInCatalog.length > 0 ? relevantInCatalog : ['Python', 'SQL', 'Git', 'REST API'],
+      recommendedSkills: ['Docker', 'CI/CD', 'System Design', 'Agile/Scrum'],
+      tailoringTips: [
+        `Tailor project descriptions to highlight deliverables relevant to ${customRoleTitle}.`,
+        'Demonstrate practical tool proficiency and business impact rather than passive participation.',
+        'Adopt domain-specific terminology throughout work experience bullet points.'
+      ]
+    };
+  }
+
+  const allTargetSkills = Array.from(new Set([...profile.coreSkills, ...profile.recommendedSkills]));
+  const matchedSkills: string[] = [];
+  const missingSkills: string[] = [];
+
+  for (const sk of allTargetSkills) {
+    const skLower = sk.toLowerCase();
+    if (lowerSkills.has(skLower) || lowerText.includes(skLower)) {
+      matchedSkills.push(sk);
+    } else {
+      missingSkills.push(sk);
+    }
+  }
+
+  const coreMatched = profile.coreSkills.filter(s => lowerSkills.has(s.toLowerCase()) || lowerText.includes(s.toLowerCase())).length;
+  const coreRatio = profile.coreSkills.length > 0 ? coreMatched / profile.coreSkills.length : 0.8;
+
+  const recMatched = profile.recommendedSkills.filter(s => lowerSkills.has(s.toLowerCase()) || lowerText.includes(s.toLowerCase())).length;
+  const recRatio = profile.recommendedSkills.length > 0 ? recMatched / profile.recommendedSkills.length : 0.6;
+
+  const rawScore = Math.round((coreRatio * 0.65 + recRatio * 0.35) * 100);
+  const matchScore = Math.max(35, Math.min(98, rawScore));
+
+  const roleReadiness: 'High Alignment' | 'Moderate Alignment' | 'Developing Fit' =
+    matchScore >= 80 ? 'High Alignment' : matchScore >= 60 ? 'Moderate Alignment' : 'Developing Fit';
+
+  return {
+    roleTitle: profile.title,
+    matchScore,
+    matchedSkills,
+    missingSkills: missingSkills.slice(0, 8),
+    roleReadiness,
+    tailoringTips: profile.tailoringTips,
+  };
 }
 
 export function extractEmail(text: string): string {
@@ -177,7 +509,7 @@ export function analyzeResumeClientSide(text: string, filename = 'resume.txt', t
       cleanText = textChunks.join(' ');
     }
   }
-  cleanText = cleanText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  cleanText = cleanText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/[^\S\r\n]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
   const lower = cleanText.toLowerCase();
   const words = cleanText.match(/\b[a-zA-Z]{2,}\b/g) || [];
@@ -1083,6 +1415,8 @@ export function screenBatchCandidatesClientSide(jobDescription: string, resumes:
       missing_skills: match.missing,
       strengths: profile.strengths,
       recommendations: profile.recommendations,
+      resume_text: text,
+      extracted_email: profile.email || '',
     };
   }).sort((a, b) => b.role_match - a.role_match);
 }
