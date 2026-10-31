@@ -146,7 +146,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   const score = analysis ? clampScore(analysis.resume_score) : null;
   const readiness = analysis ? clampScore(analysis.readiness) : null;
 
-  // 100% accurate extracted skills list
+  // Skill keywords detected in the uploaded resume text
   const skillsList = analysis?.skills || [];
   const detectedSkillCount = skillsList.length;
 
@@ -170,7 +170,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             Resume Intelligence
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Evidence-based ATS review of overall resume strength, structure, and verified skills — calculated strictly from your document.
+            ATS-style resume quality estimate based on document structure, skill keywords, contact details, and evidence. Actual ATS results vary by employer and job description.
           </p>
         </div>
 
@@ -262,11 +262,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           )}
         </div>
 
-        {/* 2 Circular Score Rings (Overall Strength & Readiness) */}
+        {/* ATS-style score and profile completeness */}
         <div className="lg:col-span-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overall Strength</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">ATS-style Resume Score</div>
               <div className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">
                 {score !== null ? (
                   <>
@@ -279,11 +279,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               <div className="text-[11px] font-semibold mt-1">
                 {score !== null ? (
                   score >= 85 ? (
-                    <span className="text-blue-600">Top Tier Resume Quality</span>
+                    <span className="text-blue-600">Strong Document Signals</span>
                   ) : score >= 70 ? (
-                    <span className="text-emerald-600">Strong Resume Quality</span>
+                    <span className="text-emerald-600">Good Document Signals</span>
                   ) : (
-                    <span className="text-amber-600">Optimization Recommended</span>
+                    <span className="text-amber-600">Improvements Recommended</span>
                   )
                 ) : (
                   <span className="text-slate-400">Awaiting Document</span>
@@ -319,16 +319,16 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
 
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs flex items-center justify-between">
             <div>
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Profile Readiness</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Profile Completeness</div>
               <div className="text-2xl font-black text-slate-900 font-mono tabular-nums mt-1">
                 {readiness !== null ? `${readiness}%` : <span className="text-slate-300 font-normal">-- %</span>}
               </div>
               <div className="text-[11px] font-semibold mt-1">
                 {readiness !== null ? (
                   readiness >= 75 ? (
-                    <span className="text-emerald-600">Strong Profile Depth</span>
+                    <span className="text-emerald-600">Most Core Sections Present</span>
                   ) : (
-                    <span className="text-amber-600">Developing Profile Depth</span>
+                    <span className="text-amber-600">Some Core Sections Missing</span>
                   )
                 ) : (
                   <span className="text-slate-400">Scan to Calculate</span>
@@ -364,7 +364,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
         </div>
       </div>
 
-      {/* EXTRACTED SKILLS MATRIX (100% ACCURATE AS IN RESUME) */}
+      {/* EXTRACTED SKILLS MATRIX */}
       <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
@@ -373,11 +373,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               <span>Extracted Skills &amp; Competencies Matrix</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Accurately extracted directly from your uploaded resume without omissions or assumed skills.
+              Skill keywords detected in the resume text. Review the list because keyword detection can include false positives or miss uncommon tools.
             </p>
           </div>
           <span className="self-start sm:self-auto text-xs font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl">
-            {hasAnalysis ? `${skillsList.length} Verified Skills Detected` : 'Awaiting Document Scan'}
+            {hasAnalysis ? `${skillsList.length} Skill Keywords Detected` : 'Awaiting Document Scan'}
           </span>
         </div>
         {hasAnalysis ? (
@@ -450,11 +450,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           <h3 className="text-sm font-black text-slate-900">Overall Quality Breakdown</h3>
           <div className="space-y-3 pt-1">
             {[
-              { name: 'Core Technical Skills', val: analysis ? analysis.score_breakdown.skills : null },
-              { name: 'Quantified Evidence & Metrics', val: analysis ? analysis.score_breakdown.achievement_evidence : null },
-              { name: 'Required Section Coverage', val: analysis ? analysis.score_breakdown.section_coverage : null },
-              { name: 'Content & Action Verbs', val: analysis ? analysis.score_breakdown.content_quality : null },
-              { name: 'Contact & Profile Completeness', val: analysis ? analysis.score_breakdown.contact_completeness : null },
+              { name: 'Detected Skills', val: analysis ? analysis.score_breakdown.skills : null },
+              { name: 'Achievement Evidence', val: analysis ? analysis.score_breakdown.achievement_evidence : null },
+              { name: 'Section Coverage', val: analysis ? analysis.score_breakdown.section_coverage : null },
+              { name: 'Content Structure', val: analysis ? analysis.score_breakdown.content_quality : null },
+              { name: 'Contact Details', val: analysis ? analysis.score_breakdown.contact_completeness : null },
             ].map((item, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
@@ -490,7 +490,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Overall strength counts are derived directly from the document content. Skills indicate confirmed keywords found in the resume text.
+            Scores are heuristic estimates based on extracted text. They are not official ATS vendor scores, hiring predictions, or a guarantee of parsing by every employer system.
           </p>
         </div>
       </div>
@@ -511,7 +511,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
                 Role-Specific Alignment Radar
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Benchmark your overall resume skills against specific market requisitions. Your primary resume score remains 100% role-independent.
+                Benchmark your overall resume skills against specific market requisitions. The document-quality score is role-independent; this separate benchmark compares detected skills with the selected role profile.
               </p>
             </div>
 
