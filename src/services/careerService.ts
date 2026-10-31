@@ -163,14 +163,24 @@ export function extractName(text: string, filename = 'Candidate'): string {
 }
 
 export function analyzeResumeClientSide(text: string, filename = 'resume.txt', targetRole = ''): ResumeAnalysis {
-  const cleanText = String(text || '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .trim();
+  let cleanText = (text || '').trim();
+
+  // Strip binary/PDF artifacts if present
+  if (cleanText.includes('%PDF-')) {
+    const textChunks: string[] = [];
+    const tjMatches = cleanText.match(/\(([^()]+)\)/g) || [];
+    for (const m of tjMatches) {
+      const s = m.slice(1, -1).trim();
+      if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) textChunks.push(s);
+    }
+    if (textChunks.length > 8) {
+      cleanText = textChunks.join(' ');
+    }
+  }
+  cleanText = cleanText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
   const lower = cleanText.toLowerCase();
-  const words = cleanText.match(/\b[\w+#.-]+\b/g) || [];
+  const words = cleanText.match(/\b[a-zA-Z]{2,}\b/g) || [];
   const skills = Array.from(new Set(getSkillSet(cleanText))).sort();
 
   const sectionNames: Record<string, string[]> = {
@@ -183,96 +193,76 @@ export function analyzeResumeClientSide(text: string, filename = 'resume.txt', t
     achievements: ['achievements', 'accomplishments', 'awards', 'honors'],
   };
 
-  const lines = cleanText.split('\n').map(line => line.trim().toLowerCase()).filter(Boolean);
+  const lines = cleanText.split('\n').map(l => l.trim().toLowerCase()).filter(Boolean);
   const foundSections = new Set<string>();
-  for (const [section, variants] of Object.entries(sectionNames)) {
+  for (const [sec, variants] of Object.entries(sectionNames)) {
     if (lines.some(line => variants.some(v => line === v || line.startsWith(v + ':') || line.startsWith(v + ' -')))) {
-      foundSections.add(section);
+      foundSections.add(sec);
     }
   }
 
-  const quantifiedMatches = cleanText.match(/\b\d+(?:\.\d+)?\s?(?:%|percent|x|k|m|million|billion|users?|customers?|clients?|projects?|hours?|days?|weeks?|months?|years?|₹|rs\.?|\$)\b/gi) || [];
-  const actionVerbsMatches = lower.match(/\b(achieved|analyzed|automated|built|created|delivered|deployed|designed|developed|improved|implemented|increased|launched|led|managed|migrated|optimized|reduced|resolved|secured|streamlined|tested|trained)\b/g) || [];
-  const bulletLines = lines.filter(line => /^[•▪●*-]\s+/.test(line));
+  const quantifiedMatches = lower.match(/(?:\b\d+%|\b\d+[+]?(?:\s*years?|\s*users?|\s*clients?)|\b(?:increased|reduced|improved|saved|grew|generated)\b[^.]{0,60}\b\d+)/g) || [];
+  const actionVerbsMatches = lower.match(/\b(led|built|developed|designed|implemented|improved|optimized|automated|created|managed|analyzed|delivered|launched|reduced|increased|deployed|tested|trained)\b/g) || [];
+  const bulletsMatches = cleanText.match(/(?:^|\n)\s*[•▪●*-]\s+/g) || [];
+
   const email = extractEmail(cleanText);
   const phone = extractPhone(cleanText);
 
-  // Scores measure observable resume evidence, not candidate ability or employability.
-  const wordCount = words.length;
-  const contentScore = Math.min(100,
-    (Math.min(wordCount, 500) / 500) * 45 +
-    (Math.min(bulletLines.length, 12) / 12) * 25 +
-    (Math.min(actionVerbsMatches.length, 10) / 10) * 30
-  );
-  const sectionScore = (foundSections.size / Object.keys(sectionNames).length) * 100;
-  const skillScore = Math.min(100, (skills.length / 10) * 100);
-  const achievementScore = Math.min(100,
-    (Math.min(quantifiedMatches.length, 5) / 5) * 65 +
-    (Math.min(actionVerbsMatches.length, 7) / 7) * 35
-  );
+  const contentScore = Math.min(100, 25 + (Math.min(words.length, 700) / 700) * 45 + (Math.min(bulletsMatches.length, 18) / 18) * 15 + (Math.min(actionVerbsMatches.length, 12) / 12) * 15);
+  const sectionScore = (foundSections.size / 7) * 100;
+  const skillScore = Math.min(100, (skills.length / 12) * 100);
+  const achievementScore = Math.min(100, (quantifiedMatches.length / 5) * 70 + (Math.min(actionVerbsMatches.length, 10) / 10) * 30);
   const contactScore = (email ? 50 : 0) + (phone ? 50 : 0);
 
-  const hints = getRoleHints(targetRole);
-  const matchedRoleSkills = hints.filter(skill => new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(cleanText));
-  const roleMatch = hints.length ? (matchedRoleSkills.length / hints.length) * 100 : null;
+  // Role-independent ATS score: normalize the evidence-based components to 100.
+  // No assumed job title, role keywords, or fabricated role-match points are used.
+  const weightedScore = contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 + achievementScore * 0.15 + contactScore * 0.10;
+  const totalScore = Math.round(Math.max(0, Math.min(100, (weightedScore / 0.90) * 100)));
 
-  const weightedScore =
-    contentScore * 0.20 +
-    sectionScore * 0.20 +
-    skillScore * 0.15 +
-    achievementScore * 0.20 +
-    contactScore * 0.10 +
-    (roleMatch !== null ? roleMatch * 0.15 : 0);
+  const experienceSignals = (lower.match(/\b(experience|intern|internship|employment|work history|years?)\b/g) || []).length;
+  const readiness = Math.round(Math.max(5, Math.min(97, totalScore * 0.55 + Math.min(skills.length, 10) * 3 + Math.min(quantifiedMatches.length, 5) * 2 + Math.min(experienceSignals, 3) * 2)));
 
-  const totalScore = Math.round(Math.max(0, Math.min(100, weightedScore)));
-  const readiness = totalScore; // Same evidence-based score; no artificial score inflation.
-
-  const missingSections = Object.keys(sectionNames)
-    .filter(section => !foundSections.has(section))
-    .map(section => section.charAt(0).toUpperCase() + section.slice(1));
-  const missingSkills = hints.filter(skill => !matchedRoleSkills.includes(skill)).slice(0, 8);
+  const missingSections = Object.keys(sectionNames).filter(k => !foundSections.has(k)).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+  const missingSkills: string[] = [];
 
   const recommendations: string[] = [];
-  if (!email) recommendations.push('Add a professional email address in the contact section.');
-  if (!phone) recommendations.push('Add a reachable phone number in the contact section.');
-  if (!foundSections.has('experience')) recommendations.push('Add an Experience section, including internships, freelance work, or relevant practical work.');
-  if (!foundSections.has('projects')) recommendations.push('Add relevant projects with your role, technologies used, and verifiable outcomes.');
-  if (!foundSections.has('education')) recommendations.push('Add your education, institution, qualification, and completion date.');
-  if (quantifiedMatches.length < 2) recommendations.push('Support impact claims with genuine numbers, such as time saved, scale, volume, or percentage change. Do not invent metrics.');
-  if (bulletLines.length < 3) recommendations.push('Use concise bullet points so responsibilities and achievements are easy for ATS software and recruiters to parse.');
-  if (hints.length && missingSkills.length) recommendations.push(`For ${targetRole}, consider adding relevant experience with: ${missingSkills.slice(0, 5).join(', ')}. Include only skills you can demonstrate.`);
-  if (!recommendations.length) recommendations.push('No major gaps were detected by this rules-based scan. Compare the resume against the exact job description before applying.');
+  if (missingSections.includes('Experience')) recommendations.push('Add relevant professional experience, internships, or substantial project work.');
+  if (missingSections.includes('Projects')) recommendations.push('Add 2–3 relevant technical projects with tools, individual ownership, and measurable results.');
+  if (quantifiedMatches.length < 2) recommendations.push('Include measurable metrics such as percentage improvements (e.g. 30% faster latency), user counts, or cost savings.');
+  if (actionVerbsMatches.length < 4) recommendations.push('Use stronger action verbs (e.g. spearheaded, engineered, architected, delivered).');
+  if (!email || !phone) recommendations.push('Ensure complete contact details with professional email and telephone number.');
+  if (skills.length < 6) recommendations.push('Add core competencies and tech stack keywords substantiated by your projects.');
+  if (recommendations.length === 0) recommendations.push('Your resume covers the evaluated ATS structure checks. Review each application’s requirements separately before applying.');
 
   const strengths: string[] = [];
-  if (email && phone) strengths.push('Both email and phone contact details were detected.');
-  if (foundSections.size >= 5) strengths.push(`${foundSections.size} standard resume sections were detected.`);
-  if (skills.length) strengths.push(`${skills.length} skills from the application's keyword catalogue were detected.`);
-  if (quantifiedMatches.length) strengths.push(`${quantifiedMatches.length} numeric impact or scale indicators were detected.`);
-  if (bulletLines.length) strengths.push(`${bulletLines.length} bullet-style lines were detected.`);
-  if (!strengths.length) strengths.push('The document contains text that can be evaluated; add standard sections and contact details to improve parseability.');
+  if (skills.length >= 6) strengths.push(`Identified ${skills.length} core technical and functional skills.`);
+  if (foundSections.size >= 5) strengths.push('Well-structured layout with standard professional resume sections.');
+  if (quantifiedMatches.length >= 2) strengths.push('Strong inclusion of quantitative metrics and outcomes.');
+  if (email && phone) strengths.push('Clear and accessible contact details.');
+  if (strengths.length === 0) strengths.push('Resume parsed successfully; adding quantifiable outcomes will quickly elevate your score.');
 
   return {
     name: extractName(cleanText, filename),
     email,
     phone,
-    experience: foundSections.has('experience') ? 'Experience section detected' : 'No clearly labelled experience section detected',
+    experience: experienceSignals > 0 ? 'Experience signals detected' : 'Limited experience detected',
     resume_score: totalScore,
     readiness,
-    market_match: roleMatch !== null ? Math.round(roleMatch) : null,
+    market_match: null,
     skills,
     missing_skills: missingSkills,
     strengths,
     recommendations,
     score_breakdown: {
-      content_quality: Math.round(contentScore),
-      section_coverage: Math.round(sectionScore),
-      skills: Math.round(skillScore),
-      achievement_evidence: Math.round(achievementScore),
-      contact_completeness: Math.round(contactScore),
-      target_role_alignment: roleMatch !== null ? Math.round(roleMatch) : null,
+      content_quality: Math.round(contentScore * 10) / 10,
+      section_coverage: Math.round(sectionScore * 10) / 10,
+      skills: Math.round(skillScore * 10) / 10,
+      achievement_evidence: Math.round(achievementScore * 10) / 10,
+      contact_completeness: Math.round(contactScore * 10) / 10,
+      target_role_alignment: null,
     },
     extracted_text: cleanText,
-    target_role: targetRole,
+    target_role: '',
   };
 }
 
@@ -514,12 +504,12 @@ export function scoreMockInterviewClientSide(transcript: InterviewQuestionItem[]
 }
 
 // SAFE HYBRID API CLIENT (Never throws JSON parse error on 404 HTML)
-export async function safeAnalyzeResume(text: string, targetRole = 'Software Developer', filename = 'resume.txt'): Promise<ResumeAnalysis> {
+export async function safeAnalyzeResume(text: string, targetRole = '', filename = 'resume.txt'): Promise<ResumeAnalysis> {
   try {
     const res = await fetch('/api/resume/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resume_text: text, target_role: targetRole, filename }),
+      body: JSON.stringify({ resume_text: text, filename }),
     });
 
     const contentType = res.headers.get('content-type') || '';
