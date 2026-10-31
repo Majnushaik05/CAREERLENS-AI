@@ -1378,64 +1378,59 @@ app.post('/api/mock-interview/score', (req: Request, res: Response) => {
   });
 });
 
-// Bulk recruiter screening with duplicate elimination
+// Bulk recruiter screening. Deduplication happens before analysis so duplicate
+// submissions never receive a second ATS score or enter the candidate results.
 app.post('/api/recruiter/screen', (req: Request, res: Response) => {
-  const { job_description = '', resumes = [] } = req.body;
-  if (!job_description.trim()) {
+  const { job_description = '', resumes = [] } = req.body || {};
+  if (typeof job_description !== 'string' || !job_description.trim()) {
     return res.status(422).json({ error: 'Job description is required for bulk screening.' });
   }
-
-  // Deduplicate incoming resumes across email, phone, and text signature
-  const seenSignatures = new Set<string>();
-  const uniqueResumes: any[] = [];
-
-  for (const r of (resumes as any[])) {
-    const text = (r.text || '').trim();
-    const rawEmail = extractEmail(text) || (r.email || '').toLowerCase().trim();
-    const rawPhone = extractPhone(text) || (r.phone || '').replace(/\D/g, '');
-    const normName = (r.name || extractName(text, r.filename || '')).toLowerCase().replace(/[^a-z]/g, '');
-    const textFingerprint = text.slice(0, 150).replace(/\s+/g, ' ').toLowerCase();
-
-    // Composite primary identity key
-    let identityKey = '';
-    if (rawEmail && !rawEmail.includes('example.com') && !rawEmail.includes('applied.net')) {
-      identityKey = `email:${rawEmail}`;
-    } else if (rawPhone && rawPhone.length >= 7) {
-      identityKey = `phone:${rawPhone}`;
-    } else if (normName && normName.length > 3) {
-      identityKey = `name:${normName}_${textFingerprint}`;
-    } else {
-      identityKey = `content:${textFingerprint}`;
-    }
-
-    if (!seenSignatures.has(identityKey)) {
-      seenSignatures.add(identityKey);
-      uniqueResumes.push(r);
-    }
+  if (!Array.isArray(resumes)) {
+    return res.status(422).json({ error: 'Resumes must be supplied as an array.' });
   }
 
-  const results = uniqueResumes.map((r, index) => {
-    const text = r.text || '';
-    const filename = r.filename || `candidate_${index + 1}.pdf`;
+  const seen = new Set<string>();
+  const uniqueResumes: any[] = [];
+  for (const resume of resumes) {
+    const text = String(resume?.text || '').trim();
+    if (!text) continue;
+    const email = String(extractEmail(text) || resume?.email || '').toLowerCase().trim();
+    const phone = String(extractPhone(text) || resume?.phone || '').replace(/\D/g, '');
+    const normalizedText = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+    const keys: string[] = [];
+    if (email && !/(?:example\.com|applied\.net)$/.test(email)) keys.push(`email:${email}`);
+    if (phone.length >= 7) keys.push(`phone:${phone}`);
+    if (normalizedText.length >= 80) keys.push(`content:${normalizedText}`);
+
+    // No name-only key: shared names are not proof of duplicate identity.
+    if (keys.some(key => seen.has(key))) continue;
+    keys.forEach(key => seen.add(key));
+    uniqueResumes.push(resume);
+  }
+
+  const results = uniqueResumes.map((resume, index) => {
+    const text = String(resume.text || '');
+    const filename = resume.filename || `candidate_${index + 1}.pdf`;
     const profile = analyzeResume(text, filename);
     const match = matchJob(text, job_description);
+    const email = profile.email || resume.email || '';
 
     return {
-      id: r.id || `cand_${Date.now()}_${index}`,
-      name: r.name || profile.name,
-      email: profile.email || r.email || `candidate${index + 1}@example.com`,
-      phone: profile.phone || r.phone || '',
+      id: resume.id || `cand_${Date.now()}_${index}`,
+      name: resume.name || profile.name,
+      email,
+      phone: profile.phone || resume.phone || '',
       resume_score: profile.resume_score,
       role_match: match.overall,
       status: match.overall >= 70 ? 'Shortlisted' : 'Screened',
       assessment_status: 'Not Sent',
-      email_status: profile.email ? 'Found' : 'Missing',
+      email_status: email ? 'Found' : 'Missing',
       skills: profile.skills,
       missing_skills: match.missing,
       strengths: profile.strengths,
       recommendations: profile.recommendations,
       resume_text: text,
-      extracted_email: profile.email || '',
+      extracted_email: profile.email || email,
     };
   });
 
