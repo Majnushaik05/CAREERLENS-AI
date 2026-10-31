@@ -234,17 +234,15 @@ function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
   const achievementScore = Math.min(100, (quantifiedMatches.length / 5) * 70 + (Math.min(actionVerbsMatches.length, 10) / 10) * 30);
   const contactScore = (email ? 50 : 0) + (phone ? 50 : 0);
 
-  const hints = getRoleHints(targetRole);
-  const roleMatch = hints.length > 0 ? (hints.filter(h => lower.includes(h)).length / hints.length) * 100 : null;
-
-  let totalScore = contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 + achievementScore * 0.15 + contactScore * 0.10 + (roleMatch !== null ? roleMatch * 0.10 : 5);
-  totalScore = Math.round(Math.max(5, Math.min(98, totalScore)));
+  // Role-independent ATS score based only on evidence found in the resume.
+  const weightedScore = contentScore * 0.25 + sectionScore * 0.20 + skillScore * 0.20 + achievementScore * 0.15 + contactScore * 0.10;
+  const totalScore = Math.round(Math.max(0, Math.min(100, (weightedScore / 0.90) * 100)));
 
   const experienceSignals = (lower.match(/\b(experience|intern|internship|employment|work history|years?)\b/g) || []).length;
   const readiness = Math.round(Math.max(5, Math.min(97, totalScore * 0.55 + Math.min(skills.length, 10) * 3 + Math.min(quantifiedMatches.length, 5) * 2 + Math.min(experienceSignals, 3) * 2)));
 
   const missingSections = Object.keys(sectionNames).filter(k => !foundSections.has(k)).map(k => k.charAt(0).toUpperCase() + k.slice(1));
-  const missingSkills = hints.filter(h => !lower.includes(h)).slice(0, 8);
+  const missingSkills: string[] = [];
 
   const recommendations: string[] = [];
   if (missingSections.includes('Experience')) recommendations.push('Add relevant experience, internships, or substantial project work.');
@@ -253,8 +251,7 @@ function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
   if (actionVerbsMatches.length < 4) recommendations.push('Use stronger action verbs (e.g. spearheaded, engineered, architected, delivered).');
   if (!email || !phone) recommendations.push('Ensure complete contact details with professional email and telephone number.');
   if (skills.length < 6) recommendations.push('Add technical and core competencies substantiated by your projects or experience.');
-  if (targetRole && roleMatch !== null && roleMatch < 50) recommendations.push(`Tailor your resume specifically toward ${targetRole} by highlighting related skills.`);
-  if (recommendations.length === 0) recommendations.push('Maintain clean formatting and tailor your accomplishments for each job application.');
+  if (recommendations.length === 0) recommendations.push('Your resume covers the evaluated ATS structure checks. Review each application’s requirements separately before applying.');
 
   const strengths: string[] = [];
   if (skills.length >= 6) strengths.push(`Identified ${skills.length} core technical and functional skills.`);
@@ -270,7 +267,7 @@ function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
     experience: experienceSignals > 0 ? 'Experience signals detected' : 'Limited experience detected',
     resume_score: totalScore,
     readiness,
-    market_match: roleMatch ? Math.round(roleMatch) : null,
+    market_match: null,
     skills,
     missing_skills: missingSkills,
     strengths,
@@ -281,12 +278,12 @@ function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
       skills: Math.round(skillScore * 10) / 10,
       achievement_evidence: Math.round(achievementScore * 10) / 10,
       contact_completeness: Math.round(contactScore * 10) / 10,
-      target_role_alignment: roleMatch !== null ? Math.round(roleMatch * 10) / 10 : null,
+      target_role_alignment: null,
     },
     extracted_text: cleanText,
     source: 'careerlens-engine-v5',
     analysis_version: 5,
-    target_role: targetRole,
+    target_role: '',
   };
 }
 
@@ -484,7 +481,7 @@ app.get('/health', (_req: Request, res: Response) => {
 // Resume analyze endpoint
 app.post('/api/resume/analyze', async (req: Request, res: Response) => {
   try {
-    let { resume_text = '', filename = 'resume.txt', target_role = '' } = req.body;
+    let { resume_text = '', filename = 'resume.txt' } = req.body;
     
     // Clean and sanitize any binary/PDF artifacts
     if (resume_text) {
@@ -507,13 +504,13 @@ app.post('/api/resume/analyze', async (req: Request, res: Response) => {
       return res.status(422).json({ error: 'The uploaded resume contains no readable text. Please paste text or try another file.' });
     }
 
-    const localResult = analyzeResume(resume_text, filename, target_role);
+    const localResult = analyzeResume(resume_text, filename, '');
 
     // If Gemini client is active, generate enhanced executive summary & tailored coaching
     if (aiClient) {
       try {
         const prompt = `You are CareerLens AI Career Coach. Analyze this resume:
-Target Role: "${target_role || 'Not specified'}"
+Do not assume or infer a target job title. Evaluate only the resume's documented evidence.
 Resume excerpt (first 3000 chars):
 ${resume_text.slice(0, 3000)}
 
