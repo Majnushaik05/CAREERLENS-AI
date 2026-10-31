@@ -68,7 +68,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
   // Helper to extract email
   const parseCandidateEmail = (text: string): string => {
     const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return emailMatch ? emailMatch[0] : 'candidate@applied.net';
+    return emailMatch ? emailMatch[0].toLowerCase() : '';
   };
 
   // Helper to extract phone
@@ -77,24 +77,23 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     return phoneMatch ? phoneMatch[0] : '';
   };
 
-  // Helper to generate a unique candidate fingerprint for deduplication
-  const getCandidateSignature = (name: string, email: string, phone: string, text: string): string => {
+  // Identity keys deliberately avoid name-only matching: two different people may share a name.
+  // A duplicate is the same normalized email, phone, or complete normalized resume content.
+  const getCandidateKeys = (email: string, phone: string, text: string): string[] => {
+    const keys: string[] = [];
     const normEmail = (email || '').toLowerCase().trim();
     const cleanPhone = (phone || '').replace(/\D/g, '');
-    const normName = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const textFingerprint = text.slice(0, 120).replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalizedText = (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
 
-    if (normEmail && !normEmail.includes('applied.net') && !normEmail.includes('example.com')) {
-      return `email:${normEmail}`;
-    }
-    if (cleanPhone && cleanPhone.length >= 7) {
-      return `phone:${cleanPhone}`;
-    }
-    if (normName && normName.length >= 3) {
-      return `name:${normName}_${textFingerprint}`;
-    }
-    return `content:${textFingerprint}`;
+    if (normEmail && !/(?:example\.com|applied\.net)$/.test(normEmail)) keys.push(`email:${normEmail}`);
+    if (cleanPhone.length >= 7) keys.push(`phone:${cleanPhone}`);
+    // Content matching catches renamed/reformatted duplicate uploads when contact details are absent.
+    if (normalizedText.length >= 80) keys.push(`content:${normalizedText}`);
+    return keys;
   };
+
+  const getCandidateKeysFromCandidate = (candidate: Candidate): string[] =>
+    getCandidateKeys(candidate.email || candidate.extracted_email || '', candidate.phone || '', candidate.resume_text || '');
 
   // Handle multi-file selection with instant deduplication
   const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,9 +105,10 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     let duplicateCount = 0;
 
     // Track existing staged keys
-    const seenSignatures = new Set<string>(
-      stagedFiles.map(f => getCandidateSignature(f.name, f.email, f.phone, f.text))
-    );
+    const seenSignatures = new Set<string>([
+      ...candidates.flatMap(getCandidateKeysFromCandidate),
+      ...stagedFiles.flatMap(f => getCandidateKeys(f.email, f.phone, f.text)),
+    ]);
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -117,14 +117,14 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         const name = parseCandidateName(textContent, file.name);
         const email = parseCandidateEmail(textContent);
         const phone = parseCandidatePhone(textContent);
-        const signature = getCandidateSignature(name, email, phone, textContent);
+        const identityKeys = getCandidateKeys(email, phone, textContent);
 
-        if (seenSignatures.has(signature)) {
+        if (identityKeys.some(key => seenSignatures.has(key))) {
           duplicateCount++;
           continue;
         }
 
-        seenSignatures.add(signature);
+        identityKeys.forEach(key => seenSignatures.add(key));
         newStaged.push({
           id: `staged_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
           filename: file.name,
@@ -206,9 +206,10 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       return;
     }
 
-    const seenSignatures = new Set<string>(
-      stagedFiles.map(f => getCandidateSignature(f.name, f.email, f.phone, f.text))
-    );
+    const seenSignatures = new Set<string>([
+      ...candidates.flatMap(getCandidateKeysFromCandidate),
+      ...stagedFiles.flatMap(f => getCandidateKeys(f.email, f.phone, f.text)),
+    ]);
 
     const newStaged: StagedResume[] = [];
     let dupCount = 0;
@@ -217,13 +218,13 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       const name = parseCandidateName(block, `Candidate ${stagedFiles.length + idx + 1}`);
       const email = parseCandidateEmail(block);
       const phone = parseCandidatePhone(block);
-      const sig = getCandidateSignature(name, email, phone, block);
+      const identityKeys = getCandidateKeys(email, phone, block);
 
-      if (seenSignatures.has(sig)) {
+      if (identityKeys.some(key => seenSignatures.has(key))) {
         dupCount++;
         return;
       }
-      seenSignatures.add(sig);
+      identityKeys.forEach(key => seenSignatures.add(key));
 
       newStaged.push({
         id: `pasted_${Date.now()}_${idx}`,
@@ -272,35 +273,18 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       text: f.text,
     }));
 
-    // Helper to merge incoming candidates without duplicate profiles
+    // Keep the existing roster unchanged and reject incoming duplicates rather than
+    // overwriting a previously screened candidate or counting them twice.
     const mergeUniqueCandidates = (incoming: Candidate[]): Candidate[] => {
-      const mergedMap = new Map<string, Candidate>();
-
-      for (const c of candidates) {
-        const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
-          ? `email:${c.email.toLowerCase()}`
-          : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
-        mergedMap.set(key, c);
+      const seen = new Set<string>(candidates.flatMap(getCandidateKeysFromCandidate));
+      const merged: Candidate[] = [...candidates];
+      for (const candidate of incoming) {
+        const keys = getCandidateKeysFromCandidate(candidate);
+        if (keys.some(key => seen.has(key))) continue;
+        keys.forEach(key => seen.add(key));
+        merged.push(candidate);
       }
-
-      for (const c of incoming) {
-        const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
-          ? `email:${c.email.toLowerCase()}`
-          : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
-        const existing = mergedMap.get(key);
-        if (existing) {
-          mergedMap.set(key, {
-            ...c,
-            id: existing.id,
-            status: (existing.status === 'Shortlisted' || existing.status === 'Assessed') ? existing.status : c.status,
-            assessment_status: existing.assessment_status !== 'Not Sent' ? existing.assessment_status : c.assessment_status,
-          });
-        } else {
-          mergedMap.set(key, c);
-        }
-      }
-
-      return Array.from(mergedMap.values()).sort((a, b) => b.role_match - a.role_match);
+      return merged.sort((a, b) => b.role_match - a.role_match);
     };
 
     try {
@@ -320,7 +304,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         onScreenComplete(merged);
         setStagedFiles([]);
         setLoading(false);
-        setSuccessMessage(`Screened ${screenedList.length} unique candidate(s). Total active roster: ${merged.length}.`);
+        setSuccessMessage(`Screening complete: ${merged.length - candidates.length} new unique candidate(s) added. Existing candidates and duplicate resumes were excluded. Total roster: ${merged.length}.`);
         setTimeout(() => setSuccessMessage(null), 3500);
         return;
       }
@@ -334,29 +318,24 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     onScreenComplete(merged);
     setStagedFiles([]);
     setLoading(false);
-    setSuccessMessage(`Screened ${fallbackList.length} unique candidate(s). Total active roster: ${merged.length}.`);
+    setSuccessMessage(`Screening complete: ${merged.length - candidates.length} new unique candidate(s) added. Existing candidates and duplicate resumes were excluded. Total roster: ${merged.length}.`);
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
   const handleDeduplicateRoster = () => {
     const seen = new Set<string>();
     const unique: Candidate[] = [];
-    for (const c of candidates) {
-      const key = (c.email && !c.email.includes('example.com') && !c.email.includes('applied.net'))
-        ? `email:${c.email.toLowerCase()}`
-        : (c.phone && c.phone.length >= 7 ? `phone:${c.phone.replace(/\D/g, '')}` : `name:${c.name.toLowerCase().trim()}`);
-      if (!seen.has(key)) {
-        seen.add(key);
-        unique.push(c);
-      }
+    for (const candidate of candidates) {
+      const keys = getCandidateKeysFromCandidate(candidate);
+      if (keys.some(key => seen.has(key))) continue;
+      keys.forEach(key => seen.add(key));
+      unique.push(candidate);
     }
     const removed = candidates.length - unique.length;
     onScreenComplete(unique);
-    if (removed > 0) {
-      setSuccessMessage(`Cleaned roster: removed ${removed} duplicate entries. ${unique.length} unique candidate(s) retained.`);
-    } else {
-      setSuccessMessage(`Roster verified: all ${unique.length} candidate(s) are unique with zero duplicates.`);
-    }
+    setSuccessMessage(removed > 0
+      ? `Cleaned roster: removed ${removed} duplicate record(s). ${unique.length} unique candidate(s) retained.`
+      : `Roster verified: ${unique.length} candidate(s) retained; no duplicates found.`);
     setTimeout(() => setSuccessMessage(null), 3500);
   };
 
