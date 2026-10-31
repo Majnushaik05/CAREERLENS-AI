@@ -1,6 +1,10 @@
 import React, { useState, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth/mammoth.browser';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 import { Candidate, HiringCampaign } from '../../types';
-import { extractResumeSkills, screenBatchCandidatesClientSide } from '../../services/careerService';
+import { extractResumeSkills, screenBatchCandidatesClientSide, extractEmail, extractPhone } from '../../services/careerService';
 import {
   UploadCloud,
   Users,
@@ -67,14 +71,12 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
 
   // Helper to extract email
   const parseCandidateEmail = (text: string): string => {
-    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    return emailMatch ? emailMatch[0].toLowerCase() : '';
+    return extractEmail(text);
   };
 
   // Helper to extract phone
   const parseCandidatePhone = (text: string): string => {
-    const phoneMatch = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-    return phoneMatch ? phoneMatch[0] : '';
+    return extractPhone(text);
   };
 
   // Identity keys deliberately avoid name-only matching: two different people may share a name.
@@ -136,6 +138,8 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
         });
       } catch (err) {
         console.warn(`Failed to read ${file.name}:`, err);
+        const message = err instanceof Error ? err.message : `Could not read ${file.name}.`;
+        setErrorMessage(prev => prev ? `${prev} ${message}` : message);
       }
     }
 
@@ -158,27 +162,46 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     }
   };
 
-  const readFileAsText = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        let text = (ev.target?.result as string) || '';
-        // Extract plain strings from PDF structure if raw PDF
-        if (text.includes('%PDF-')) {
-          const chunks: string[] = [];
-          const matches = text.match(/\(([^()]+)\)/g) || [];
-          for (const m of matches) {
-            const s = m.slice(1, -1).trim();
-            if (s.length > 1 && !/^[\x00-\x1F]+$/.test(s)) chunks.push(s);
-          }
-          if (chunks.length > 5) text = chunks.join(' ');
-        }
-        text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ').replace(/\s{2,}/g, ' ').trim();
-        resolve(text);
-      };
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
+  const readFileAsText = async (file: File): Promise<string> => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error(`${file.name} exceeds the 10 MB upload limit.`);
+    }
+
+    let extractedText = '';
+    if (extension === 'txt' || extension === 'md') {
+      extractedText = await file.text();
+    } else if (extension === 'docx') {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      extractedText = result.value || '';
+    } else if (extension === 'pdf') {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      const pages: string[] = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map(item => ('str' in item ? item.str : ''))
+          .filter(Boolean)
+          .join(' ');
+        pages.push(pageText);
+      }
+      extractedText = pages.join('\n\n');
+    } else {
+      throw new Error(`Unsupported file type: .${extension}. Upload PDF, DOCX, TXT, or MD.`);
+    }
+
+    const cleaned = extractedText
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (cleaned.length < 30) {
+      throw new Error(`${file.name}: no readable text found. If this is a scanned/image-only PDF, run OCR or upload a text-based PDF.`);
+    }
+    return cleaned;
   };
 
   const removeStagedFile = (id: string) => {
@@ -426,7 +449,7 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".pdf,.txt,.docx,.doc,.md"
+            accept=".pdf,.txt,.docx,.md"
             onChange={handleFilesSelected}
             className="hidden"
           />
