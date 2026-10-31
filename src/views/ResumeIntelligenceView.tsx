@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ResumeAnalysis } from '../types';
-import { safeAnalyzeResume, getRoleHints } from '../services/careerService';
+import { safeAnalyzeResume } from '../services/careerService';
 import {
   FileText,
   Upload,
@@ -23,7 +23,6 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   onClearAnalysis,
 }) => {
   const [resumeText, setResumeText] = useState(analysis?.extracted_text || '');
-  const [targetRole, setTargetRole] = useState(analysis?.target_role || 'Software Developer');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +75,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
     try {
       const data = await safeAnalyzeResume(
         textToSubmit,
-        targetRole,
+        '',
         uploadedFileName || 'candidate_resume.txt'
       );
       onAnalysisComplete(data);
@@ -96,18 +95,10 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
   const score = analysis ? clampScore(analysis.resume_score) : null;
   const readiness = analysis ? clampScore(analysis.readiness) : null;
 
-  // Compare detected resume keywords with the selected role's keyword checklist.
-  // This is keyword evidence, not a measure of actual skill proficiency.
+  // Skills are extracted only from evidence present in the uploaded resume.
   const skillsList = analysis?.skills || [];
-  const missingSkillsList = analysis?.missing_skills || [];
-  const roleHints = getRoleHints(targetRole);
-  const skillGapData = (roleHints.length ? roleHints : [...skillsList, ...missingSkillsList])
-    .slice(0, 5)
-    .map(skill => ({
-      skill,
-      current: skillsList.some(item => item.toLowerCase() === skill.toLowerCase()) ? 100 : 0,
-      required: 100,
-    }));
+  const detectedSkillCount = skillsList.length;
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto selection:bg-blue-600 selection:text-white">
@@ -122,7 +113,7 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
             Resume Intelligence
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Evaluate your document with section weighting, key competencies, and target role alignment.
+            Evidence-based ATS review of resume structure, skills, content, and completeness — without assuming a job role.
           </p>
         </div>
 
@@ -181,20 +172,8 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Target Role:</span>
-              <select
-                value={targetRole}
-                onChange={e => setTargetRole(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-blue-500"
-              >
-                <option value="Software Developer">Software Developer</option>
-                <option value="Machine Learning Engineer">Machine Learning / AI Engineer</option>
-                <option value="Full Stack Developer">Full Stack Engineer</option>
-                <option value="Data Scientist">Data Scientist</option>
-                <option value="Data Analyst">Data Analyst</option>
-                <option value="Cloud DevOps Engineer">Cloud &amp; DevOps Engineer</option>
-                <option value="Product Manager">Product Manager</option>
-              </select>
+              <span className="text-xs font-semibold text-slate-600">Analysis:</span>
+              <span className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50 text-slate-700">Role-independent ATS review</span>
             </div>
 
             <button
@@ -241,11 +220,11 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
               <div className="text-[11px] font-semibold mt-1">
                 {score !== null ? (
                   score >= 85 ? (
-                    <span className="text-blue-600">Top Tier Match</span>
+                    <span className="text-blue-600">Excellent Resume Quality</span>
                   ) : score >= 70 ? (
-                    <span className="text-emerald-600">Strong Role Alignment</span>
+                    <span className="text-emerald-600">Strong Resume Quality</span>
                   ) : (
-                    <span className="text-amber-600">Optimization Recommended</span>
+                    <span className="text-amber-600">Resume Improvements Recommended</span>
                   )
                 ) : (
                   <span className="text-slate-400">Awaiting Analysis</span>
@@ -428,50 +407,22 @@ export const ResumeIntelligenceView: React.FC<ResumeIntelligenceViewProps> = ({
           </div>
         </div>
 
-        {/* Skill Gap Analysis Vertical Bar Graph */}
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-900">Target Role Skill Gap Analysis</h3>
-            <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-blue-600" />
-                <span>Keyword detected</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded bg-blue-200" />
-                <span>Role keyword</span>
-              </span>
+        {/* ATS Snapshot: resume-derived facts only */}
+        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+          <h3 className="text-sm font-black text-slate-900">ATS Detection Summary</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-blue-50 border border-blue-100 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-blue-600">Skills detected</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{hasAnalysis ? detectedSkillCount : '--'}</div>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Resume sections</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{hasAnalysis ? `${Math.round(((analysis.score_breakdown?.section_coverage ?? 0) / 100) * 7)}/7` : '--'}</div>
             </div>
           </div>
-
-          {/* Vertical Bar Chart */}
-          <div className="h-44 pt-4 flex items-end justify-between gap-4 border-b border-slate-100 pb-2">
-            {skillGapData.map((col, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                <div className="w-full flex items-end justify-center gap-1 h-32">
-                  <div
-                    className="w-3.5 bg-blue-600 rounded-t transition-all duration-700"
-                    style={{ height: `${hasAnalysis ? col.current : 0}%` }}
-                    title={`${col.skill} current: ${hasAnalysis ? col.current : 0}%`}
-                  />
-                  <div
-                    className="w-3.5 bg-blue-200 rounded-t transition-all duration-700"
-                    style={{ height: `${col.required}%` }}
-                    title={`${col.skill} benchmark: ${col.required}%`}
-                  />
-                </div>
-                <span className="text-[10px] text-slate-600 font-semibold text-center truncate max-w-[65px] leading-tight">
-                  {col.skill}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-[11px] text-slate-400 text-center pt-1">
-            {hasAnalysis
-              ? "Keyword presence in the resume compared with the selected role's keyword checklist."
-              : 'Run an analysis to compare detected resume keywords with the selected role.'}
-          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Counts are extracted from the resume text. Skills indicate detected keywords, not verified proficiency. ATS compatibility varies by employer and applicant-tracking system.
+          </p>
         </div>
       </div>
     </div>
