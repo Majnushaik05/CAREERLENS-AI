@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResumeAnalysis, Candidate, HiringCampaign } from './types';
+import { sanitizeCandidateName } from './services/careerService';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LandingHero } from './components/LandingHero';
@@ -32,11 +33,26 @@ export const App: React.FC = () => {
   const [assessmentToken, setAssessmentToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('assessment');
-    if (token) {
-      setAssessmentToken(token);
-    }
+    const checkToken = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      let token = searchParams.get('assessment');
+      if (!token && window.location.hash) {
+        const hashQuery = window.location.hash.split('?')[1] || window.location.hash.replace(/^#\/?/, '');
+        token = new URLSearchParams(hashQuery).get('assessment');
+      }
+      if (token) {
+        setAssessmentToken(token);
+      } else {
+        setAssessmentToken(null);
+      }
+    };
+    checkToken();
+    window.addEventListener('popstate', checkToken);
+    window.addEventListener('hashchange', checkToken);
+    return () => {
+      window.removeEventListener('popstate', checkToken);
+      window.removeEventListener('hashchange', checkToken);
+    };
   }, []);
 
   // Auth & Session state
@@ -126,7 +142,17 @@ export const App: React.FC = () => {
   const [campaign, setCampaign] = useState<HiringCampaign | null>(() => {
     try {
       const saved = localStorage.getItem('careerlens_hiring_campaign');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (parsed) {
+        return {
+          ...parsed,
+          passing_score: Number.isFinite(Number(parsed.passing_score)) ? Number(parsed.passing_score) : 75,
+          question_count: Number.isFinite(Number(parsed.question_count)) ? Number(parsed.question_count) : 10,
+          duration_minutes: Number.isFinite(Number(parsed.duration_minutes)) ? Number(parsed.duration_minutes) : 30,
+        };
+      }
+      return null;
     } catch {
       return null;
     }
@@ -148,7 +174,15 @@ export const App: React.FC = () => {
   const [candidates, setCandidates] = useState<Candidate[]>(() => {
     try {
       const saved = localStorage.getItem('careerlens_candidates');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed.map((c: any) => ({
+          ...c,
+          name: sanitizeCandidateName(c.name, c.resume_text, undefined, c.email || c.extracted_email),
+        }));
+      }
+      return [];
     } catch {
       return [];
     }
@@ -299,7 +333,13 @@ export const App: React.FC = () => {
             />
           );
         case 'Assessment Results':
-          return <AssessmentResultsView candidates={candidates} />;
+          return (
+            <AssessmentResultsView
+              candidates={candidates}
+              onUpdateCandidate={handleUpdateCandidate}
+              onNavigate={handleSelectTool}
+            />
+          );
         case 'Interview Pipeline':
           return (
             <InterviewPipelineView

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Candidate, HiringCampaign } from '../../types';
+import { sanitizeCandidateName } from '../../services/careerService';
 import {
   Send,
   Copy,
@@ -8,16 +9,16 @@ import {
   Mail,
   Clock,
   AlertCircle,
-  Sparkles,
+  Building,
   UserCheck,
-  ShieldCheck,
-  FileText,
   Zap,
   RefreshCw,
   Key,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  CheckCircle2,
 } from 'lucide-react';
 import { extractEmail } from '../../services/careerService';
 
@@ -28,23 +29,13 @@ interface AssessmentDispatcherViewProps {
   onUpdateCandidate: (candidateId: string, updates: Partial<Candidate>) => void;
 }
 
-const COMMON_ROLES = [
+const QUICK_ROLES = [
   'Full Stack Developer',
-  'Backend Engineer',
   'Frontend Engineer',
+  'Backend Engineer',
   'DevOps & Cloud Engineer',
   'Data Scientist / AI',
-  'Cybersecurity Specialist',
   'QA Automation Engineer',
-  'Mobile App Developer',
-];
-
-const TIMER_PRESETS = [
-  { min: 15, label: '15 Min (Quick Screener)' },
-  { min: 30, label: '30 Min (Standard ATS)' },
-  { min: 45, label: '45 Min (Comprehensive)' },
-  { min: 60, label: '60 Min (Deep Technical)' },
-  { min: 90, label: '90 Min (Senior Architectural)' },
 ];
 
 export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> = ({
@@ -75,10 +66,16 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
     return formatDateTimeLocal(d);
   });
 
-  // Finalizing exam configurations
-  const [targetRole, setTargetRole] = useState(campaign?.role || 'Software Developer');
-  const [durationMinutes, setDurationMinutes] = useState(campaign?.duration_minutes || 30);
-  const [questionCount, setQuestionCount] = useState(campaign?.question_count || 10);
+  // Hiring Organization & Role Configurations
+  const [companyName, setCompanyName] = useState(campaign?.company || 'Apex Technologies');
+  const [hiringManager, setHiringManager] = useState('Sarah Jenkins · Lead Technical Recruiter');
+  const [targetRole, setTargetRole] = useState(campaign?.role || 'Full Stack Developer');
+  const [durationMinutes, setDurationMinutes] = useState(
+    Number.isNaN(Number(campaign?.duration_minutes)) || !campaign?.duration_minutes ? 30 : Number(campaign.duration_minutes)
+  );
+  const [questionCount, setQuestionCount] = useState(
+    Number.isNaN(Number(campaign?.question_count)) || !campaign?.question_count ? 10 : Number(campaign.question_count)
+  );
 
   // SendGrid State
   const [sendGridStatus, setSendGridStatus] = useState<{ configured: boolean; from_email: string } | null>(null);
@@ -104,6 +101,16 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
       setSelectedCandidateId(preselectedCandidate.id);
     }
   }, [preselectedCandidate]);
+
+  // Sync with campaign if loaded
+  useEffect(() => {
+    if (campaign?.company && !companyName) {
+      setCompanyName(campaign.company);
+    }
+    if (campaign?.role && !targetRole) {
+      setTargetRole(campaign.role);
+    }
+  }, [campaign]);
 
   // Fetch SendGrid API status on mount
   useEffect(() => {
@@ -138,7 +145,6 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
       foundEmail = selectedCandidate.extracted_email;
       isResumeSource = true;
     } else if (selectedCandidate.resume_text) {
-      // Extract fresh from candidate's resume content
       const parsed = extractEmail(selectedCandidate.resume_text);
       if (parsed) {
         foundEmail = parsed;
@@ -146,7 +152,6 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
       }
     }
 
-    // Fallback to standard candidate.email if not a placeholder
     if (!foundEmail && selectedCandidate.email && !selectedCandidate.email.includes('example.com') && !selectedCandidate.email.includes('applied.net')) {
       foundEmail = selectedCandidate.email;
       isResumeSource = false;
@@ -158,16 +163,63 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
 
     setRecipientEmail(foundEmail);
     setEmailExtractedFromResume(isResumeSource);
-
-    // If new link was generated for another candidate, reset link
     setGeneratedLink('');
     setGeneratedToken('');
     setStatusMsg(null);
   }, [selectedCandidateId, selectedCandidate?.resume_text, selectedCandidate?.email]);
 
-  const handleGenerateLink = async () => {
+  // Helper to create the assessment link on backend
+  const createAssessmentOnServer = async (activeEmail: string) => {
+    const genRes = await fetch('/api/assessment/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: targetRole.trim(), question_count: questionCount }),
+    });
+    const genData = await genRes.json().catch(() => ({}));
+    if (!genRes.ok) throw new Error(genData.error || 'Could not generate assessment questions.');
+    if (!Array.isArray(genData.questions) || genData.questions.length === 0) {
+      throw new Error('The assessment generator returned no questions. Please try again.');
+    }
+
+    const pubRes = await fetch('/api/public/assessment/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: targetRole.trim(),
+        company_name: companyName.trim() || 'Hiring Organization',
+        hiring_manager: hiringManager.trim() || 'Talent Acquisition Team',
+        candidate_id: selectedCandidate.id,
+        candidate_name: sanitizeCandidateName(selectedCandidate.name, selectedCandidate.resume_text, undefined, activeEmail),
+        candidate_email: activeEmail,
+        duration_minutes: durationMinutes,
+        start_time: startTime ? new Date(startTime).toISOString() : null,
+        end_time: endTime ? new Date(endTime).toISOString() : null,
+        questions: genData.questions,
+      }),
+    });
+    const pubData = await pubRes.json().catch(() => ({}));
+    if (!pubRes.ok) throw new Error(pubData.error || 'Could not create the candidate assessment link.');
+    if (!pubData.token || !pubData.link) throw new Error('The server did not return a valid assessment token.');
+
+    const fullUrl = new URL(pubData.link, window.location.origin).toString();
+    setGeneratedLink(fullUrl);
+    setGeneratedToken(pubData.token);
+
+    onUpdateCandidate(selectedCandidate.id, {
+      email: activeEmail,
+      extracted_email: emailExtractedFromResume ? activeEmail : selectedCandidate.extracted_email,
+      email_source: emailExtractedFromResume ? 'resume' : 'manual',
+      assessment_status: 'Not Sent',
+      test_token: pubData.token,
+    });
+
+    return { token: pubData.token, link: fullUrl };
+  };
+
+  // Generate Link Only (for copying or testing)
+  const handleGenerateLinkOnly = async () => {
     if (!selectedCandidate) {
-      setStatusMsg({ type: 'warning', text: 'Select a candidate before generating an assessment.' });
+      setStatusMsg({ type: 'warning', text: 'Please select a candidate first.' });
       return;
     }
     if (!targetRole.trim()) {
@@ -176,115 +228,94 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
     }
 
     setLoading(true);
-    setGeneratedLink('');
-    setGeneratedToken('');
     setStatusMsg(null);
     const activeEmail = recipientEmail.trim() || selectedCandidate.email || '';
 
     try {
-      const genRes = await fetch('/api/assessment/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: targetRole.trim(), question_count: questionCount }),
-      });
-      const genData = await genRes.json().catch(() => ({}));
-      if (!genRes.ok) throw new Error(genData.error || 'Could not generate assessment questions.');
-      if (!Array.isArray(genData.questions) || genData.questions.length === 0) {
-        throw new Error('The assessment generator returned no questions. Please try again.');
-      }
-
-      const pubRes = await fetch('/api/public/assessment/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: targetRole.trim(),
-          candidate_id: selectedCandidate.id,
-          candidate_name: selectedCandidate.name,
-          candidate_email: activeEmail,
-          duration_minutes: durationMinutes,
-          start_time: startTime ? new Date(startTime).toISOString() : null,
-          end_time: endTime ? new Date(endTime).toISOString() : null,
-          questions: genData.questions,
-        }),
-      });
-      const pubData = await pubRes.json().catch(() => ({}));
-      if (!pubRes.ok) throw new Error(pubData.error || 'Could not create the candidate assessment link.');
-      if (!pubData.token || !pubData.link) throw new Error('The server did not return a valid assessment token and link.');
-
-      const fullUrl = new URL(pubData.link, window.location.origin).toString();
-      setGeneratedLink(fullUrl);
-      setGeneratedToken(pubData.token);
-      onUpdateCandidate(selectedCandidate.id, {
-        email: activeEmail,
-        extracted_email: emailExtractedFromResume ? activeEmail : selectedCandidate.extracted_email,
-        email_source: emailExtractedFromResume ? 'resume' : 'manual',
-        assessment_status: 'Not Sent',
-        test_token: pubData.token,
-      });
+      const created = await createAssessmentOnServer(activeEmail);
       setStatusMsg({
         type: 'success',
-        text: `Assessment link generated for ${selectedCandidate.name}.`,
-        details: `Role: ${targetRole} · Duration: ${durationMinutes} min · Questions: ${genData.questions.length}. The candidate has not been emailed yet.`,
+        text: `Secure assessment link generated for ${selectedCandidate.name}.`,
+        details: `Role: ${targetRole} · Company: ${companyName} · ${durationMinutes} minutes. You can preview or copy the link below.`,
       });
     } catch (error: any) {
-      setStatusMsg({ type: 'warning', text: error?.message || 'Assessment generation failed. Please try again.' });
+      setStatusMsg({ type: 'warning', text: error?.message || 'Assessment generation failed.' });
     } finally {
       setLoading(false);
     }
   };
 
+  // Unified Dispatch: Generate & Send via SendGrid
   const handleDispatchEmail = async () => {
-    if (!selectedCandidate || !generatedLink || !generatedToken) {
-      setStatusMsg({ type: 'warning', text: 'Generate a valid assessment link before sending the invitation.' });
+    if (!selectedCandidate) {
+      setStatusMsg({ type: 'warning', text: 'Please select a candidate before dispatching.' });
       return;
     }
     const targetEmail = (recipientEmail.trim() || selectedCandidate.email || '').trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(targetEmail) || /@(example\.com|applied\.net)$/i.test(targetEmail)) {
-      setStatusMsg({ type: 'warning', text: 'Enter a valid candidate email address before dispatching.' });
+      setStatusMsg({ type: 'warning', text: 'Please enter a valid candidate email address before dispatching.' });
       return;
     }
 
     setEmailing(true);
     setStatusMsg(null);
+
     try {
+      let activeLink = generatedLink;
+      let activeToken = generatedToken;
+
+      // Auto-generate assessment link if not already done
+      if (!activeLink || !activeToken) {
+        const created = await createAssessmentOnServer(targetEmail);
+        activeLink = created.link;
+        activeToken = created.token;
+      }
+
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to_email: targetEmail,
-          to_name: selectedCandidate.name,
-          subject: `Technical Assessment Invitation: ${targetRole}`,
-          role: targetRole,
+          to_name: sanitizeCandidateName(selectedCandidate.name, selectedCandidate.resume_text, undefined, targetEmail),
+          company_name: companyName.trim() || 'CareerLens Partner',
+          hiring_manager: hiringManager.trim() || 'Talent Acquisition Team',
+          subject: `${companyName.trim() || 'Hiring Team'} is Hiring: Assessment Invitation for ${targetRole}`,
+          role: targetRole.trim(),
           duration_minutes: durationMinutes,
           question_count: questionCount,
-          exam_link: generatedLink,
+          exam_link: activeLink,
           start_time: startTime ? new Date(startTime).toISOString() : null,
           end_time: endTime ? new Date(endTime).toISOString() : null,
           custom_api_key: customApiKey.trim() || undefined,
           custom_from_email: customFromEmail.trim() || undefined,
         }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Email service returned HTTP ${res.status}.`);
       if (data.status !== 'sent' || data.provider !== 'sendgrid') {
-        throw new Error(data.sendgrid_notice || 'SendGrid has not confirmed delivery. Configure a valid SendGrid API key and verified sender, then try again.');
+        throw new Error(data.sendgrid_notice || 'SendGrid has not confirmed delivery. Please check SendGrid credentials.');
       }
 
       onUpdateCandidate(selectedCandidate.id, {
         email: targetEmail,
         assessment_status: 'Sent',
-        test_token: generatedToken,
+        test_token: activeToken,
         last_dispatched_at: new Date().toISOString(),
         sendgrid_message_id: data.message_id || undefined,
       });
+
       setStatusMsg({
         type: 'success',
-        text: `Invitation accepted by SendGrid for ${targetEmail}.`,
-        details: `Message ID: ${data.message_id || 'Accepted'} · Role: ${targetRole}.`,
+        text: `Invitation delivered to ${targetEmail} via SendGrid!`,
+        details: `Message ID: ${data.message_id || 'Accepted'} · ${companyName} · ${targetRole}.`,
       });
     } catch (error: any) {
-      setStatusMsg({ type: 'warning', text: error?.message || 'Email dispatch failed. The candidate status was not changed.' });
+      setStatusMsg({
+        type: 'warning',
+        text: error?.message || 'Email dispatch failed. Candidate status was not changed.',
+      });
     } finally {
       setEmailing(false);
     }
@@ -298,46 +329,36 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto selection:bg-purple-600 selection:text-white">
-      {/* Top Banner with SendGrid Connectivity Indicator */}
-      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-6xl mx-auto selection:bg-purple-600 selection:text-white pb-12">
+      {/* Professional Header Banner */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
-              Exam Dispatcher
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+              Assessment Dispatcher
             </span>
-            <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs font-semibold text-slate-500">SendGrid Email Delivery &amp; Role Assessments</span>
+            <span className="text-xs text-slate-300">•</span>
+            <span className="text-xs font-medium text-slate-500">Candidate Email Invitations</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Role-Based Assessment Generator &amp; SendGrid Dispatcher
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Assessment Dispatcher &amp; Candidate Invitations
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-            Extract candidate emails directly from resumes, configure tailored role exams and questions timers, and dispatch test invitations via SendGrid API.
+            Configure hiring organization details, review verified candidate resume emails, and dispatch role assessments via SendGrid.
           </p>
         </div>
 
-        {/* SendGrid Status Card */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-              <Zap className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
-                <span>SendGrid API</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <div className="text-[11px] text-slate-500 font-mono">
-                {sendGridStatus?.from_email || 'careerlenssai@gmail.com'}
-              </div>
-            </div>
+        {/* Clean SendGrid Status Badge */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl flex items-center gap-2 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-bold text-slate-800">SendGrid Active</span>
+            <span className="text-slate-400 font-mono text-[11px]">({sendGridStatus?.from_email || 'Verified Sender'})</span>
           </div>
-
           <button
             type="button"
             onClick={() => setShowSendGridConfig(!showSendGridConfig)}
-            className="p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer"
             title="Configure SendGrid API credentials"
           >
             <Key className="w-4 h-4" />
@@ -345,21 +366,21 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
         </div>
       </div>
 
-      {/* Optional SendGrid API Config Drawer */}
+      {/* Optional SendGrid Credentials Drawer */}
       {showSendGridConfig && (
-        <div className="bg-purple-50/50 border border-purple-200 rounded-3xl p-5 sm:p-6 space-y-3">
+        <div className="bg-purple-50/60 border border-purple-200 rounded-3xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Key className="w-4 h-4 text-purple-600" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-purple-900">
-                SendGrid API Override Settings (Optional)
+              <Key className="w-4 h-4 text-purple-700" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-950">
+                Custom SendGrid Credentials (Optional Override)
               </h3>
             </div>
-            <span className="text-[11px] text-purple-700 font-medium">Default: Environment Key Active</span>
+            <span className="text-[11px] text-purple-700 font-medium">Default: System API Key Active</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Custom SendGrid API Key</label>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Custom API Key</label>
               <input
                 type="password"
                 value={customApiKey}
@@ -382,166 +403,202 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
         </div>
       )}
 
-      {/* MAIN TWO-COLUMN DISPATCHER STUDIO */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Candidate & Exam Configuration */}
-        <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-          {/* Step 1: Candidate Selection with Resume Email Extraction */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+      {/* Status Message Banner */}
+      {statusMsg && (
+        <div
+          className={`p-4 rounded-2xl border text-xs font-bold space-y-1 ${
+            statusMsg.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : statusMsg.type === 'info'
+              ? 'bg-blue-50 border-blue-200 text-blue-900'
+              : 'bg-amber-50 border-amber-200 text-amber-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {statusMsg.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            )}
+            <span>{statusMsg.text}</span>
+          </div>
+          {statusMsg.details && (
+            <div className="text-[11px] font-normal opacity-90 pl-6">
+              {statusMsg.details}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MAIN TWO-COLUMN WORKSPACE */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Dispatch Configuration Form (7 Columns) */}
+        <div className="lg:col-span-7 space-y-5">
+          {/* Card 1: Candidate & Verified Contact */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-purple-600" />
-                <span>1. Select Candidate &amp; Resume Email</span>
-              </label>
-              <span className="text-[11px] font-bold text-purple-700">
-                {candidates.length} Candidate(s) in Roster
+                <span>1. Candidate &amp; Email Contact</span>
+              </h2>
+              <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                {candidates.length} Available in Roster
               </span>
             </div>
 
             {candidates.length > 0 ? (
-              <select
-                value={selectedCandidate?.id}
-                onChange={e => setSelectedCandidateId(e.target.value)}
-                className="w-full p-3 rounded-2xl border border-slate-300 text-xs font-bold text-slate-900 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
-              >
-                {candidates.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · {c.role_match}% Match [{c.assessment_status}]
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="text-xs text-slate-400 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                No candidates available yet. Please screen candidates in Bulk Resume Screening.
-              </div>
-            )}
-
-            {/* Candidate Resume Email Extraction Card */}
-            {selectedCandidate && (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-600">Candidate Email Extraction:</span>
-                  {emailExtractedFromResume ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      Extracted from Candidate Resume
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      Roster Contact Record
-                    </span>
-                  )}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Candidate</label>
+                  <select
+                    value={selectedCandidate?.id}
+                    onChange={e => setSelectedCandidateId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                  >
+                    {candidates.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {sanitizeCandidateName(c.name, c.resume_text, undefined, c.email || c.extracted_email)} · {c.role_match}% Match [{c.assessment_status}]
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      value={recipientEmail}
-                      onChange={e => {
-                        setRecipientEmail(e.target.value);
-                        setEmailExtractedFromResume(false);
-                      }}
-                      placeholder="candidate@example.com"
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700">Recipient Email Address</label>
+                    {emailExtractedFromResume && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Extracted from Resume
+                      </span>
+                    )}
                   </div>
-                  {selectedCandidate.resume_text && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const parsed = extractEmail(selectedCandidate.resume_text || '');
-                        if (parsed) {
-                          setRecipientEmail(parsed);
-                          setEmailExtractedFromResume(true);
-                        }
-                      }}
-                      className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition shrink-0 flex items-center gap-1 cursor-pointer"
-                      title="Re-extract email directly from candidate's resume"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Re-extract</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        value={recipientEmail}
+                        onChange={e => {
+                          setRecipientEmail(e.target.value);
+                          setEmailExtractedFromResume(false);
+                        }}
+                        placeholder="candidate@email.com"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      />
+                    </div>
+                    {selectedCandidate?.resume_text && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const parsed = extractEmail(selectedCandidate.resume_text || '');
+                          if (parsed) {
+                            setRecipientEmail(parsed);
+                            setEmailExtractedFromResume(true);
+                          }
+                        }}
+                        className="px-3 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 transition shrink-0 flex items-center gap-1 cursor-pointer"
+                        title="Re-extract email directly from candidate's uploaded resume"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Re-extract</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    SendGrid will dispatch the test invitation and private exam token to this email.
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-500">
-                  SendGrid will dispatch the exam token and invitation directly to this verified candidate email.
-                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                No candidates screened yet. Upload resumes in Bulk Screening first.
               </div>
             )}
           </div>
 
-          {/* Step 2: Finalize Exam According to Role */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-purple-600" />
-                <span>2. Finalize Exam Target Role</span>
-              </label>
-              <span className="text-[11px] text-slate-500">Domain-Specific Question Bank</span>
+          {/* Card 2: Hiring Organization Details */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <Building className="w-4 h-4 text-purple-600" />
+                <span>2. Hiring Organization &amp; Position</span>
+              </h2>
+              <span className="text-[11px] text-slate-400 font-medium">Candidate Email Details</span>
             </div>
 
-            <input
-              type="text"
-              value={targetRole}
-              onChange={e => setTargetRole(e.target.value)}
-              placeholder="e.g. Senior Full Stack Engineer"
-              className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Company Hiring</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={e => setCompanyName(e.target.value)}
+                  placeholder="e.g. Apex Technologies Inc."
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                />
+              </div>
 
-            {/* Quick Role Selection Pills */}
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_ROLES.map(roleItem => (
-                <button
-                  key={roleItem}
-                  type="button"
-                  onClick={() => setTargetRole(roleItem)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                    targetRole === roleItem
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
-                  }`}
-                >
-                  {roleItem}
-                </button>
-              ))}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Hiring Manager / Recruiter</label>
+                <input
+                  type="text"
+                  value={hiringManager}
+                  onChange={e => setHiringManager(e.target.value)}
+                  placeholder="e.g. Sarah Jenkins · Talent Team"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Position / Role</label>
+              <input
+                type="text"
+                value={targetRole}
+                onChange={e => setTargetRole(e.target.value)}
+                placeholder="e.g. Full Stack Developer"
+                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              />
+
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {QUICK_ROLES.map(r => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setTargetRole(r)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                      targetRole === r
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Step 3: Finalize Exam Questions & Questions Timer */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-purple-600" />
-              <span>3. Finalize Questions Count &amp; Countdown Timer</span>
-            </label>
-
-            {/* Timer Presets */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {TIMER_PRESETS.map(preset => (
-                <button
-                  key={preset.min}
-                  type="button"
-                  onClick={() => setDurationMinutes(preset.min)}
-                  className={`p-2.5 rounded-xl text-xs font-bold text-left border transition cursor-pointer ${
-                    durationMinutes === preset.min
-                      ? 'bg-purple-50 border-purple-300 text-purple-900 ring-1 ring-purple-400'
-                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="font-extrabold">{preset.min} Minutes</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{preset.label.split('(')[1]?.replace(')', '') || 'Exam'}</div>
-                </button>
-              ))}
+          {/* Card 3: Exam Blueprint & Schedule */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-purple-600" />
+                <span>3. Assessment Blueprint &amp; Timing</span>
+              </h2>
+              <span className="text-[11px] text-slate-400 font-medium">Auto-scored out of 100</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Total Exam Questions</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Question Volume</label>
                 <select
-                  value={questionCount}
-                  onChange={e => setQuestionCount(parseInt(e.target.value, 10))}
-                  className="w-full p-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white"
+                  value={Number.isNaN(questionCount) ? 10 : questionCount}
+                  onChange={e => {
+                    const val = parseInt(e.target.value, 10);
+                    setQuestionCount(Number.isNaN(val) ? 10 : val);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white cursor-pointer"
                 >
                   <option value={5}>5 Questions (Express Screener)</option>
                   <option value={10}>10 Questions (Standard Technical)</option>
@@ -552,29 +609,27 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Custom Timer (Minutes)</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Exam Timer (Minutes)</label>
                 <input
                   type="number"
                   min={5}
                   max={120}
-                  value={durationMinutes}
-                  onChange={e => setDurationMinutes(parseInt(e.target.value, 10) || 30)}
-                  className="w-full p-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white"
+                  value={Number.isNaN(Number(durationMinutes)) ? '' : durationMinutes}
+                  onChange={e => {
+                    const val = parseInt(e.target.value, 10);
+                    setDurationMinutes(Number.isNaN(val) ? ('' as any) : val);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white"
                 />
               </div>
             </div>
-          </div>
 
-          {/* Step 4: Examination Window Schedule */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-purple-600" />
-              <span>4. Scheduled Examination Window</span>
-            </label>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Window Opens (Start)</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Window Opens</span>
+                </label>
                 <input
                   type="datetime-local"
                   value={startTime}
@@ -583,7 +638,10 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Window Closes (Deadline)</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Window Deadline</span>
+                </label>
                 <input
                   type="datetime-local"
                   value={endTime}
@@ -594,169 +652,175 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
             </div>
           </div>
 
-          {/* Generate Action Button */}
-          <button
-            type="button"
-            onClick={handleGenerateLink}
-            disabled={loading || !selectedCandidate}
-            className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs shadow-md shadow-purple-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {loading ? (
-              <span>Finalizing Exam Blueprint &amp; Token...</span>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span>Finalize Exam &amp; Generate Secure Link</span>
-              </>
-            )}
-          </button>
+          {/* Unified Primary Dispatch Actions */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={handleDispatchEmail}
+              disabled={emailing || loading || !selectedCandidate}
+              className="flex-1 py-3.5 px-6 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-black text-xs shadow-md shadow-purple-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Zap className="w-4 h-4 text-amber-300" />
+              <span>
+                {emailing
+                  ? 'Dispatching via SendGrid...'
+                  : `Send Assessment via SendGrid to ${recipientEmail || selectedCandidate?.name || 'Candidate'}`}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGenerateLinkOnly}
+              disabled={loading || emailing || !selectedCandidate}
+              className="py-3.5 px-5 rounded-2xl bg-slate-100 hover:bg-purple-50 text-purple-700 font-bold text-xs border border-slate-200 transition flex items-center justify-center gap-2 cursor-pointer"
+              title="Generate link without sending email"
+            >
+              <Layers className="w-4 h-4" />
+              <span>{loading ? 'Generating...' : 'Generate Link Only'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* Right Column: Exam Blueprint & SendGrid Dispatch Action */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Status Message Banner */}
-          {statusMsg && (
-            <div
-              className={`p-4 rounded-2xl border text-xs font-bold space-y-1 ${
-                statusMsg.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : statusMsg.type === 'info'
-                  ? 'bg-blue-50 border-blue-200 text-blue-900'
-                  : 'bg-amber-50 border-amber-200 text-amber-900'
-              }`}
-            >
+        {/* Right Column: Live Candidate Email Preview (5 Columns) */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {statusMsg.type === 'success' ? (
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                )}
-                <span>{statusMsg.text}</span>
+                <Eye className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold uppercase tracking-wider">Candidate Email Preview</span>
               </div>
-              {statusMsg.details && (
-                <div className="text-[11px] font-normal opacity-90 pl-6">
-                  {statusMsg.details}
+              <span className="text-[10px] font-mono text-slate-400">SendGrid v3 HTML</span>
+            </div>
+
+            {/* Email Meta Info */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200/80 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-semibold text-[11px]">Subject:</span>
+                <span className="font-bold text-slate-900 truncate max-w-[260px]">
+                  {companyName} is Hiring: Assessment for {targetRole}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-semibold text-[11px]">From:</span>
+                <span className="font-mono text-purple-700 text-[11px]">
+                  {companyName} Talent Team &lt;{sendGridStatus?.from_email || 'careerlenssai@gmail.com'}&gt;
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-semibold text-[11px]">To:</span>
+                <span className="font-mono text-slate-700 text-[11px]">
+                  {selectedCandidate?.name || 'Candidate'} &lt;{recipientEmail || 'candidate@email.com'}&gt;
+                </span>
+              </div>
+            </div>
+
+            {/* Simulated Email Body Preview */}
+            <div className="p-5 space-y-4">
+              {/* Email Company Banner */}
+              <div className="bg-gradient-to-r from-purple-800 via-purple-700 to-purple-900 text-white p-5 rounded-2xl text-center space-y-1 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-purple-200">
+                  Official Hiring Invitation
                 </div>
-              )}
-            </div>
-          )}
+                <h3 className="text-xl font-black tracking-tight">{companyName}</h3>
+                <div className="text-xs text-purple-200 font-medium">
+                  Hiring Managed by {hiringManager}
+                </div>
+              </div>
 
-          {/* Exam Summary Blueprint Card */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                Finalized Exam Summary
-              </h3>
-              <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                Strict 100-Mark Scale
-              </span>
-            </div>
+              {/* Email Content Message */}
+              <div className="space-y-2 text-xs text-slate-700 leading-relaxed">
+                <p>
+                  Dear <strong>{selectedCandidate ? sanitizeCandidateName(selectedCandidate.name, selectedCandidate.resume_text, undefined, recipientEmail || selectedCandidate.email) : 'Candidate'}</strong>,
+                </p>
+                <p>
+                  <strong>{companyName}</strong> is actively recruiting for the <strong>{targetRole}</strong> role. <strong>{hiringManager}</strong> has reviewed your credentials and shortlisted your application for the next evaluation round.
+                </p>
+              </div>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Candidate:</span>
-                <span className="font-bold text-slate-900">{selectedCandidate?.name || 'Selected Candidate'}</span>
+              {/* Prominent Hiring Requisition Box */}
+              <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl text-xs space-y-2 text-purple-950">
+                <div className="text-[10px] font-black uppercase tracking-wider text-purple-800">
+                  Hiring Requisition Summary:
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500 block">Hiring Company:</span>
+                    <strong className="text-slate-900">{companyName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Hiring Manager:</span>
+                    <strong className="text-slate-900">{hiringManager}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Target Role:</span>
+                    <strong className="text-slate-900">{targetRole}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Evaluation Standard:</span>
+                    <strong className="text-slate-900">Strict 100 Marks</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Questions:</span>
+                    <strong className="text-slate-900">{questionCount} Questions</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Timed Duration:</span>
+                    <strong className="text-slate-900">{durationMinutes} Minutes</strong>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Recipient Email:</span>
-                <span className="font-mono font-bold text-purple-700 text-[11px]">
-                  {recipientEmail || selectedCandidate?.email || 'Missing'}
-                </span>
+
+              {/* Call to Action Button in Email */}
+              <div className="pt-1 text-center">
+                <div className="inline-block w-full py-3 px-6 rounded-xl bg-purple-700 text-white font-bold text-xs text-center shadow-md shadow-purple-600/20">
+                  Launch Technical Assessment &rarr;
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Assessed Role:</span>
-                <span className="font-bold text-slate-900">{targetRole}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Question Volume:</span>
-                <span className="font-bold text-slate-900">{questionCount} Questions</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Active Countdown Timer:</span>
-                <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
-                  {durationMinutes} Minutes
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Marks per Question:</span>
-                <span className="font-bold text-slate-900">{Math.round((100 / questionCount) * 10) / 10} pts</span>
+
+              <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 text-center">
+                Automated single-use evaluation token generated by CareerLens AI ATS.
               </div>
             </div>
           </div>
 
-          {/* SendGrid Dispatch Action Section */}
-          {generatedLink ? (
-            <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-6 space-y-4 shadow-xs">
+          {/* Generated Link & Direct Candidate Access Card */}
+          {generatedLink && (
+            <div className="bg-purple-50/80 border border-purple-200 rounded-3xl p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-purple-700" />
-                  <span className="text-xs font-black text-purple-900 uppercase tracking-wider">
-                    SendGrid Exam Dispatch
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
-                  Token Ready
+                <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Assessment Link Active</span>
+                </span>
+                <span className="text-[10px] font-mono text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                  Token: {generatedToken.slice(0, 12)}...
                 </span>
               </div>
 
-              {/* Shareable Link Input */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-purple-900">Direct Assessment Link:</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={generatedLink}
-                    className="flex-1 p-2 bg-white rounded-xl border border-purple-200 text-xs font-mono text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="px-3 py-2 bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied' : 'Copy'}</span>
-                  </button>
-                  <a
-                    href={generatedLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs transition shrink-0 inline-flex items-center"
-                    title="Take or preview assessment in candidate view"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={generatedLink}
+                  className="flex-1 p-2 bg-white rounded-xl border border-purple-200 text-xs font-mono text-slate-800"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="px-3 py-2 bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+                <a
+                  href={generatedLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs transition shrink-0 inline-flex items-center"
+                  title="Open candidate exam portal in new tab"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
               </div>
-
-              {/* Big SendGrid Send Button */}
-              <button
-                type="button"
-                onClick={handleDispatchEmail}
-                disabled={emailing}
-                className="w-full py-3.5 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white font-black text-xs shadow-md shadow-purple-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-4 h-4 text-amber-300" />
-                <span>
-                  {emailing
-                    ? 'Dispatching via SendGrid API...'
-                    : `Send Exam Email via SendGrid to ${recipientEmail || selectedCandidate.email}`}
-                </span>
-              </button>
-
-              <div className="pt-2 text-[11px] text-purple-800/80 leading-relaxed space-y-1">
-                <p>
-                  <strong>Live Testing Note:</strong> You can click the arrow icon above to open the candidate exam portal, submit answers, and immediately watch the score appear on your Recruiter Dashboard!
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 text-center space-y-3">
-              <Mail className="w-8 h-8 text-slate-300 mx-auto" />
-              <h4 className="text-xs font-bold text-slate-700">Awaiting Exam Finalization</h4>
-              <p className="text-[11px] text-slate-400 max-w-xs mx-auto leading-relaxed">
-                Click "Finalize Exam &amp; Generate Secure Link" above to initialize the role-based token and unlock SendGrid email dispatch.
-              </p>
             </div>
           )}
         </div>

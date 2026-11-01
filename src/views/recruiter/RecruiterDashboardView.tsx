@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Candidate, HiringCampaign } from '../../types';
+import { sanitizeCandidateName } from '../../services/careerService';
 import {
   Users,
   Megaphone,
@@ -399,7 +400,8 @@ export const RecruiterDashboardView: React.FC<RecruiterDashboardViewProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {liveAssessments.map((item, idx) => {
                   const isPassed = item.score !== null && item.score >= (campaign?.passing_score || 70);
-                  const initials = item.candidateName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CD';
+                  const cleanCandidateName = sanitizeCandidateName(item.candidateName);
+                  const initials = cleanCandidateName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CD';
 
                   return (
                     <tr key={item.id || idx} className="hover:bg-slate-50/70 transition">
@@ -410,7 +412,7 @@ export const RecruiterDashboardView: React.FC<RecruiterDashboardViewProps> = ({
                         </div>
                         <div>
                           <div className="font-extrabold text-slate-950 text-xs flex items-center gap-1.5">
-                            <span>{item.candidateName}</span>
+                            <span>{cleanCandidateName}</span>
                           </div>
                           <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1">
                             <Mail className="w-3 h-3 text-slate-400" />
@@ -494,7 +496,26 @@ export const RecruiterDashboardView: React.FC<RecruiterDashboardViewProps> = ({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 text-right">
+                      <td className="py-3.5 text-right whitespace-nowrap space-x-2">
+                        {item.status === 'Completed' && (
+                          <button
+                            onClick={() => {
+                              const matchedCand = candidates.find(
+                                c => (item.candidateId && c.id === item.candidateId) ||
+                                     (item.email && c.email.toLowerCase() === item.email.toLowerCase())
+                              );
+                              if (matchedCand && onUpdateCandidate) {
+                                onUpdateCandidate(matchedCand.id, {
+                                  status: 'Interview Scheduled',
+                                });
+                              }
+                              onNavigate('Interview Pipeline');
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                          >
+                            Schedule Interview
+                          </button>
+                        )}
                         <button
                           onClick={() => onNavigate('Assessment Results')}
                           className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-purple-700 text-xs font-bold transition cursor-pointer"

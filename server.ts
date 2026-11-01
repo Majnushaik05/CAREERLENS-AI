@@ -184,20 +184,91 @@ function extractPhone(text: string): string {
   return '';
 }
 
-function extractName(text: string, filename = 'Candidate'): string {
-  const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 12)) {
-    if (line.includes('@') || /(?:\+?\d[\d .()\-]{8,}\d)/.test(line)) continue;
-    if (line.length > 70) continue;
-    const lower = line.toLowerCase();
-    if (['resume', 'curriculum vitae', 'objective', 'summary', 'skills'].some(t => lower.includes(t))) continue;
-    const words = line.split(/\s+/);
-    if (words.length >= 2 && words.length <= 5 && words.every(w => /^[A-Za-z.'-]+$/.test(w))) {
-      return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+function sanitizeCandidateName(
+  rawName?: string,
+  text?: string,
+  filename?: string,
+  email?: string
+): string {
+  let name = (rawName || '').trim();
+
+  // Strip file extensions if present in name
+  name = name.replace(/\.(?:pdf|docx?|txt|md)$/i, '').trim();
+
+  // Strip common noisy prefix/suffix tags like "- Resume", "_ Resume", "Resume", "CV", "Curriculum Vitae"
+  name = name
+    .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv|bio|profile|document|doc|preview)(?:\s*[-–—|/()_]+|\s*|\.[a-z]{2,4})*$/i, '')
+    .replace(/^(?:resume|curriculum\s+vitae|cv|profile)\s*(?:of|for|[-–—:|/()_])*\s*/i, '')
+    .replace(/^[-–—|/()_]+|[-–—|/()_]+$/g, '')
+    .trim();
+
+  // If name is clean and valid (at least 2 letters, not just "resume" or "candidate" or numbers)
+  if (name.length >= 2 && !/^(?:resume|cv|curriculum\s+vitae|document|candidate|applicant|null|undefined)$/i.test(name)) {
+    return name
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  // Fallback 1: Extract real name from text if available
+  if (text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of lines.slice(0, 15)) {
+      const explicit = line.match(/(?:name|candidate|applicant)\s*[:\-–—]\s*([A-Za-z\s.'-]+)/i);
+      if (explicit && explicit[1]) {
+        const cleanedExplicit = sanitizeCandidateName(explicit[1]);
+        if (cleanedExplicit && cleanedExplicit !== 'Candidate') return cleanedExplicit;
+      }
+    }
+    for (const line of lines.slice(0, 10)) {
+      if (line.includes('@') || /(?:\+?\d[\d .()\-]{8,}\d)/.test(line) || line.length > 50) continue;
+      const strippedLine = line
+        .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv)(?:[-–—|/()_]+|\s*)*$/i, '')
+        .replace(/^[#*\-•\s]+/, '')
+        .trim();
+      const words = strippedLine.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 && words.length <= 4 && words.every(w => /^[A-Za-z.'-]+$/.test(w))) {
+        const candidateName = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        if (!/^(?:work experience|professional experience|technical skills|summary|profile|about me)$/i.test(candidateName)) {
+          return candidateName;
+        }
+      }
     }
   }
-  const stem = (filename || 'Candidate').replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
-  return stem ? stem.charAt(0).toUpperCase() + stem.slice(1) : 'Candidate';
+
+  // Fallback 2: Check filename (e.g. shaik_majnu_resume.pdf -> Shaik Majnu)
+  if (filename) {
+    const stem = filename
+      .replace(/\.[^/.]+$/, '')
+      .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv)(?:[-–—|/()_]+|\s*)*$/i, '')
+      .replace(/^[#*\-•_]+/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    if (stem.length >= 2 && !/^(?:resume|cv|document|candidate)$/i.test(stem)) {
+      return stem
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  // Fallback 3: Check email address username (e.g. shaikmajnu07@gmail.com -> Shaik Majnu)
+  if (email && email.includes('@')) {
+    const userPart = email.split('@')[0].replace(/\d+/g, '').replace(/[._-]+/g, ' ').trim();
+    if (userPart.length >= 2) {
+      return userPart
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  return 'Candidate';
+}
+
+function extractName(text: string, filename = 'Candidate'): string {
+  const email = extractEmail(text);
+  return sanitizeCandidateName('', text, filename, email);
 }
 
 function analyzeResume(text: string, filename = 'resume.txt', targetRole = '') {
@@ -388,6 +459,31 @@ function getAssessmentBank(role: string) {
       { id: 3, question: 'Why is the "key" prop critical when rendering dynamic lists in React?', options: ['Helps React identify which items have changed, been added, or removed for reconciliation', 'Styles the HTML elements with unique CSS classes', 'Encrypts the list data in memory', 'Assigns unique DOM event listeners automatically'], answer: 'Helps React identify which items have changed, been added, or removed for reconciliation', section: 'Component Architecture' },
       { id: 4, question: 'What does CSS "content-visibility: auto" achieve on long content pages?', options: ['Skips rendering of off-screen elements until scrolled near viewport, saving render time', 'Hides content permanently from screen readers', 'Translates text automatically into user language', 'Changes images into SVG vectors'], answer: 'Skips rendering of off-screen elements until scrolled near viewport, saving render time', section: 'CSS & Rendering Optimization' },
       { id: 5, question: 'Which technique prevents memory leaks when using event listeners in useEffect hooks?', options: ['Returning a cleanup function that removes the attached listener', 'Calling event.preventDefault() inside the callback', 'Wrapping the component in React.StrictMode', 'Using useState instead of useRef'], answer: 'Returning a cleanup function that removes the attached listener', section: 'Hooks & Lifecycle' },
+      { id: 6, question: 'What is the primary difference between server-side rendering (SSR) and client-side rendering (CSR)?', options: ['SSR generates HTML on the server per request, reducing initial Time to First Contentful Paint', 'SSR executes only on iOS devices', 'CSR cannot use CSS stylesheets', 'SSR permanently disables JavaScript'], answer: 'SSR generates HTML on the server per request, reducing initial Time to First Contentful Paint', section: 'Web Architecture' },
+      { id: 7, question: 'In modern TypeScript, what does the "unknown" type enforce over "any"?', options: ['Type narrowing or assertions must be performed before performing operations on the value', 'It converts strings into integers automatically', 'It restricts variables to numbers only', 'It causes a runtime error if undefined'], answer: 'Type narrowing or assertions must be performed before performing operations on the value', section: 'TypeScript Fundamentals' },
+    ];
+  }
+
+  // QA Automation, Testing & SDET
+  if (['qa', 'quality', 'test', 'automation', 'sdet', 'tester'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'In the Testing Pyramid, why should unit tests comprise the largest volume of tests?', options: ['They are fast, deterministic, isolate bugs quickly, and have low maintenance cost', 'They run exclusively on production databases', 'They eliminate the need for any manual exploratory testing', 'They do not require written test assertions'], answer: 'They are fast, deterministic, isolate bugs quickly, and have low maintenance cost', section: 'Test Strategy' },
+      { id: 2, question: 'What is the most effective approach to mitigate flaky end-to-end tests?', options: ['Using explicit assertions with smart conditional waits rather than arbitrary sleeps', 'Running tests with network disabled', 'Deleting tests that fail more than once', 'Increasing CPU overclocking on CI nodes'], answer: 'Using explicit assertions with smart conditional waits rather than arbitrary sleeps', section: 'Automation Reliability' },
+      { id: 3, question: 'What distinguishes a Mock from a Stub in test doubles?', options: ['Mocks verify interactions and expectations; Stubs provide canned data to calls made during tests', 'Mocks only work in Python; Stubs only work in Java', 'Stubs execute against real third-party production servers', 'Mocks are compiled binary drivers'], answer: 'Mocks verify interactions and expectations; Stubs provide canned data to calls made during tests', section: 'Unit Testing & Doubles' },
+      { id: 4, question: 'In API testing, what does Contract Testing (e.g. Pact) verify?', options: ['Consumers and providers adhere to an agreed schema and response contract independently', 'The exact ping latency of the Ethernet cables', 'The database storage disk encryption level', 'The CSS color palette of client dashboards'], answer: 'Consumers and providers adhere to an agreed schema and response contract independently', section: 'API & Integration Testing' },
+      { id: 5, question: 'What is the key difference between Smoke Testing and Regression Testing?', options: ['Smoke tests verify critical build health; Regression tests ensure existing functionality remains unbroken after changes', 'Smoke tests take 48 hours to complete', 'Regression tests are performed exclusively on mobile hardware', 'Smoke tests require physical smoke detectors in data centers'], answer: 'Smoke tests verify critical build health; Regression tests ensure existing functionality remains unbroken after changes', section: 'Test Methodologies' },
+      { id: 6, question: 'In the Page Object Model (POM) pattern for UI automation, what is the core architectural rule?', options: ['Web page elements and actions are encapsulated in classes, keeping test logic separate from locators', 'All test cases must be written in a single massive file', 'HTML selectors must use XPath absolute coordinates only', 'Tests should run without browsers'], answer: 'Web page elements and actions are encapsulated in classes, keeping test logic separate from locators', section: 'UI Automation Architecture' },
+    ];
+  }
+
+  // Mobile App Development (iOS, Android, React Native, Flutter)
+  if (['mobile', 'ios', 'android', 'swift', 'kotlin', 'flutter', 'react native'].some(k => roleL.includes(k))) {
+    return [
+      { id: 1, question: 'In mobile operating systems, why must long-running network requests never run on the main thread?', options: ['They freeze the UI rendering loop, causing unresponsive app (ANR/jank) events', 'Operating systems automatically terminate battery charging', 'Network cards reject background threads', 'HTTP packets can only be decoded by GPU threads'], answer: 'They freeze the UI rendering loop, causing unresponsive app (ANR/jank) events', section: 'Mobile Architecture' },
+      { id: 2, question: 'In iOS Swift development, how do you prevent retain cycles in closure captures?', options: ['Using [weak self] or [unowned self] capture lists in closures', 'Setting all variables to global scope', 'Disabling ARC (Automatic Reference Counting)', 'Calling fatalError() after every view transition'], answer: 'Using [weak self] or [unowned self] capture lists in closures', section: 'iOS & Memory Management' },
+      { id: 3, question: 'In Android Jetpack Compose or Kotlin, what does remember and mutableStateOf accomplish?', options: ['Preserves and triggers UI re-composition when the observable state value updates across renders', 'Compresses APK binary size by 40%', 'Enables Bluetooth advertising without user permissions', 'Stores user credentials in SharedPreferences'], answer: 'Preserves and triggers UI re-composition when the observable state value updates across renders', section: 'Android Core' },
+      { id: 4, question: 'What is the primary architectural purpose of Deep Linking / Universal Links in mobile applications?', options: ['Routing web URLs directly to specific in-app views and preserved navigation state', 'Downloading entire operating system updates silently', 'Speeding up App Store review times', 'Encrypting local SQLite databases'], answer: 'Routing web URLs directly to specific in-app views and preserved navigation state', section: 'Mobile Navigation' },
+      { id: 5, question: 'How should mobile offline-first architectures handle pending data modifications?', options: ['Store mutations locally in SQLite/Room/CoreData and replay sync queue on connectivity restoration', 'Drop mutations immediately and prompt user to find Wi-Fi', 'Block app launch until a cellular tower responds', 'Keep sockets open constantly even when in airplane mode'], answer: 'Store mutations locally in SQLite/Room/CoreData and replay sync queue on connectivity restoration', section: 'Offline-First Systems' },
     ];
   }
 
@@ -985,34 +1081,45 @@ Rules:
 
 // Pre-interview assessment generation (supports 1 to 100 adjustable questions)
 app.post('/api/assessment/generate', (req: Request, res: Response) => {
-  const { role = 'Software Developer', question_count = 20 } = req.body;
-  const bank = getAssessmentBank(role);
-  const count = Math.max(1, Math.min(100, Number(question_count) || 20));
-  const questions: any[] = [];
+  try {
+    const { role = 'Software Developer', question_count = 10 } = req.body || {};
+    const roleStr = String(role || 'Software Developer').trim() || 'Software Developer';
+    const bank = getAssessmentBank(roleStr);
+    const count = Math.max(1, Math.min(100, Number(question_count) || 10));
+    const questions: any[] = [];
 
-  for (let i = 0; i < count; i++) {
-    const base = bank[i % bank.length];
-    const opts = [...base.options].sort(() => Math.random() - 0.5);
-    const cycle = Math.floor(i / bank.length);
-    const scenarioPrefix = cycle > 0 ? `[Scenario Case ${cycle + 1}] ` : '';
-    questions.push({
-      id: i + 1,
-      question: `${scenarioPrefix}${base.question}`,
-      options: opts,
-      answer: base.answer,
-      section: base.section || 'Technical Competency',
-      weight: Math.round((100 / count) * 100) / 100,
+    const safeBank = Array.isArray(bank) && bank.length > 0 ? bank : [
+      { id: 1, question: 'Which practice ensures high software reliability before production release?', options: ['Automated unit/integration testing and peer code reviews', 'Skipping validation steps during sprints', 'Ignoring error log exceptions', 'Hard-coding credentials in configuration files'], answer: 'Automated unit/integration testing and peer code reviews', section: 'Quality & Reliability' },
+      { id: 2, question: 'What does database indexing primarily achieve in high-throughput applications?', options: ['Dramatically accelerates SELECT query lookups at the expense of slight write overhead', 'Compresses text storage on disk only', 'Encrypts user passwords automatically', 'Eliminates the need for schema migrations'], answer: 'Dramatically accelerates SELECT query lookups at the expense of slight write overhead', section: 'Database Systems' },
+    ];
+
+    for (let i = 0; i < count; i++) {
+      const base = safeBank[i % safeBank.length];
+      const opts = [...(base.options || [])].sort(() => Math.random() - 0.5);
+      const cycle = Math.floor(i / safeBank.length);
+      const scenarioPrefix = cycle > 0 ? `[Scenario Case ${cycle + 1}] ` : '';
+      questions.push({
+        id: i + 1,
+        question: `${scenarioPrefix}${base.question}`,
+        options: opts,
+        answer: base.answer,
+        section: base.section || 'Technical Competency',
+        weight: Math.round((100 / count) * 100) / 100,
+      });
+    }
+
+    return res.status(200).json({
+      role: roleStr,
+      question_count: count,
+      total_marks: 100,
+      marks_per_question: Math.round((100 / count) * 100) / 100,
+      questions,
+      source: 'careerlens-qualifying-engine-v3',
     });
+  } catch (err: any) {
+    console.error('Error generating assessment questions:', err);
+    return res.status(500).json({ error: err.message || 'Could not generate assessment questions.' });
   }
-
-  return res.json({
-    role,
-    question_count: count,
-    total_marks: 100,
-    marks_per_question: Math.round((100 / count) * 100) / 100,
-    questions,
-    source: 'careerlens-qualifying-engine-v3',
-  });
 });
 
 // Pre-interview assessment score (Strict 100-Mark Scale Evaluation)
@@ -1260,11 +1367,14 @@ app.post('/api/recruiter/screen', (req: Request, res: Response) => {
     const profile = analyzeResume(text, filename);
     const match = matchJob(text, job_description);
 
+    const candEmail = profile.email || r.email || '';
+    const cleanName = sanitizeCandidateName(r.name || profile.name, text, filename, candEmail);
+
     return {
       id: r.id || `cand_${Date.now()}_${index}`,
-      name: r.name || profile.name,
-      email: profile.email || r.email || '',
-      extracted_email: profile.email || r.email || '',
+      name: cleanName,
+      email: candEmail,
+      extracted_email: candEmail,
       phone: profile.phone || r.phone || extractPhone(text),
       resume_score: profile.resume_score,
       role_match: match.overall,
@@ -1282,20 +1392,251 @@ app.post('/api/recruiter/screen', (req: Request, res: Response) => {
   return res.json(results);
 });
 
-// Send email / mock dispatcher
-app.post('/api/send-email', (req: Request, res: Response) => {
-  const { to_email, subject, content } = req.body;
-  if (!to_email || !subject) {
-    return res.status(422).json({ error: 'Missing to_email or subject' });
+// SendGrid API Status Endpoint
+app.get('/api/sendgrid/status', (_req: Request, res: Response) => {
+  const envKey = (process.env.SENDGRID_API_KEY || '').trim();
+  const envFrom = (process.env.SENDGRID_FROM_EMAIL || 'careerlenssai@gmail.com').trim();
+  return res.json({
+    configured: Boolean(envKey && envKey.startsWith('SG.')),
+    from_email: envFrom,
+    key_prefix: envKey ? `${envKey.slice(0, 7)}...` : null,
+    provider: 'sendgrid',
+  });
+});
+
+// Send email via SendGrid Web API v3
+app.post('/api/send-email', async (req: Request, res: Response) => {
+  try {
+    const {
+      to_email,
+      to_name = 'Candidate',
+      company_name = 'Apex Systems',
+      hiring_manager = 'Talent Acquisition Team',
+      subject,
+      role = 'Technical Role',
+      duration_minutes = 30,
+      question_count = 10,
+      exam_link,
+      start_time = null,
+      end_time = null,
+      custom_api_key,
+      custom_from_email,
+    } = req.body || {};
+
+    const cleanToEmail = String(to_email || '').trim();
+    const cleanCompany = String(company_name || 'Apex Systems').trim();
+    const cleanHiringManager = String(hiring_manager || 'Talent Acquisition Team').trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!cleanToEmail || !emailRegex.test(cleanToEmail)) {
+      return res.status(422).json({
+        status: 'failed',
+        error: 'Invalid recipient email address. Candidate must have a valid email format.',
+      });
+    }
+
+    if (/@(example\.com|applied\.net)$/i.test(cleanToEmail)) {
+      return res.status(422).json({
+        status: 'failed',
+        error: 'Recipient email cannot be a placeholder address. Please extract candidate email from resume or specify a real address.',
+      });
+    }
+
+    if (!exam_link) {
+      return res.status(422).json({
+        status: 'failed',
+        error: 'Missing required exam link. Please finalize and generate an assessment token before sending.',
+      });
+    }
+
+    const apiKey = (custom_api_key || process.env.SENDGRID_API_KEY || '').trim();
+    const fromEmail = (custom_from_email || process.env.SENDGRID_FROM_EMAIL || 'careerlenssai@gmail.com').trim();
+
+    if (!apiKey) {
+      return res.status(400).json({
+        status: 'failed',
+        provider: 'none',
+        error: 'SendGrid API Key is not configured. Please supply a valid SendGrid API Key in the settings drawer or environment.',
+        sendgrid_notice: 'No SendGrid API Key found.',
+      });
+    }
+
+    const emailSubject = subject || `${cleanCompany} is Hiring: Assessment Invitation for ${role}`;
+
+    let scheduleNotice = '';
+    if (start_time || end_time) {
+      const startStr = start_time ? new Date(start_time).toLocaleString() : 'Immediate';
+      const endStr = end_time ? new Date(end_time).toLocaleString() : 'Open Window';
+      scheduleNotice = `
+        <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:14px; padding:14px 18px; margin:18px 0; font-size:13px; color:#5b21b6;">
+          <strong>Scheduled Examination Window:</strong><br/>
+          • Opens: <strong>${startStr}</strong><br/>
+          • Deadline: <strong>${endStr}</strong>
+        </div>
+      `;
+    }
+
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${emailSubject}</title>
+      </head>
+      <body style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color:#f8fafc; margin:0; padding:24px; color:#1e293b;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px; background-color:#ffffff; border-radius:24px; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 10px 25px -5px rgba(0,0,0,0.06);">
+          <!-- Header Banner with Company Branding -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #6b21a8 0%, #7e22ce 50%, #9333ea 100%); padding:36px 32px; text-align:center;">
+              <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; color:#f3e8ff; margin-bottom:6px;">Official Hiring Invitation</div>
+              <h1 style="color:#ffffff; margin:0; font-size:26px; font-weight:900; letter-spacing:-0.5px;">${cleanCompany}</h1>
+              <p style="color:#e9d5ff; margin:6px 0 0 0; font-size:13px; font-weight:600;">Hiring Managed by ${cleanHiringManager}</p>
+            </td>
+          </tr>
+          <!-- Main Body -->
+          <tr>
+            <td style="padding:32px 30px;">
+              <p style="font-size:16px; line-height:24px; margin:0 0 16px 0; color:#0f172a;">Dear <strong>${to_name}</strong>,</p>
+              
+              <p style="font-size:14px; line-height:22px; color:#475569; margin:0 0 18px 0;">
+                Great news! <strong>${cleanCompany}</strong> is actively recruiting for the <strong>${role}</strong> position, and <strong>${cleanHiringManager}</strong> has reviewed your credentials and shortlisted your application for the next phase.
+              </p>
+
+              <p style="font-size:14px; line-height:22px; color:#475569; margin:0 0 22px 0;">
+                To evaluate your domain competencies and problem-solving readiness, please complete our tailored online technical screening assessment.
+              </p>
+
+              <!-- Hiring Details Card -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#faf5ff; border:1px solid #e9d5ff; border-radius:18px; margin-bottom:22px;">
+                <tr>
+                  <td style="padding:20px 22px; font-size:13px; color:#581c87; line-height:24px;">
+                    <div style="font-weight:900; font-size:13px; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; color:#6b21a8;">
+                      Hiring Requisition Summary
+                    </div>
+                    • <strong>Company Hiring:</strong> <span style="color:#0f172a; font-weight:700;">${cleanCompany}</span><br/>
+                    • <strong>Hiring Manager / Recruiter:</strong> <span style="color:#0f172a; font-weight:700;">${cleanHiringManager}</span><br/>
+                    • <strong>Target Position:</strong> <span style="color:#0f172a; font-weight:700;">${role}</span><br/>
+                    • <strong>Question Count:</strong> ${question_count} Questions (Strict 100-Mark Scale)<br/>
+                    • <strong>Timed Assessment Duration:</strong> ${duration_minutes} Minutes
+                  </td>
+                </tr>
+              </table>
+
+              ${scheduleNotice}
+
+              <!-- Primary CTA Action -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 24px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${exam_link}" target="_blank" style="display:inline-block; background-color:#7e22ce; color:#ffffff; font-size:14px; font-weight:800; text-decoration:none; padding:15px 36px; border-radius:14px; box-shadow:0 4px 14px rgba(126,34,206,0.35);">
+                      Launch Technical Assessment &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:12px; color:#64748b; line-height:18px; margin:20px 0 0 0;">
+                If the button above does not open directly, copy and paste this link into your browser:<br/>
+                <a href="${exam_link}" target="_blank" style="color:#7e22ce; word-break:break-all;">${exam_link}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8fafc; padding:20px 30px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8; text-align:center;">
+              Sent by ${cleanCompany} via CareerLens AI ATS · Single-use secure evaluation link.
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const textBody = `Hello ${to_name},\n\n${cleanCompany} is hiring for the ${role} position!\nHiring Manager: ${cleanHiringManager}\nCompany: ${cleanCompany}\nPosition: ${role}\nDuration: ${duration_minutes} minutes (${question_count} questions)\n\nPlease complete your assessment at:\n${exam_link}\n\nCareerLens ATS`;
+
+    // Real call to SendGrid v3 Mail Send
+    const sendGridPayload = {
+      personalizations: [
+        {
+          to: [{ email: cleanToEmail, name: to_name }],
+        },
+      ],
+      from: {
+        email: fromEmail,
+        name: `${cleanCompany} Talent Team`,
+      },
+      subject: emailSubject,
+      content: [
+        {
+          type: 'text/html',
+          value: htmlBody,
+        },
+        {
+          type: 'text/plain',
+          value: textBody,
+        },
+      ],
+    };
+
+    const sgResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(sendGridPayload),
+    });
+
+    if (sgResponse.status === 202) {
+      const messageId = sgResponse.headers.get('x-message-id') || `sg_${Date.now()}`;
+      console.log(`[SendGrid Dispatcher] Successfully sent assessment to ${cleanToEmail}, messageId: ${messageId}`);
+      return res.status(200).json({
+        status: 'sent',
+        provider: 'sendgrid',
+        message_id: messageId,
+        to: cleanToEmail,
+        delivered_at: new Date().toISOString(),
+      });
+    }
+
+    // Extract precise SendGrid error payload
+    let sgErrorText = `SendGrid responded with HTTP ${sgResponse.status}`;
+    try {
+      const sgJson = await sgResponse.json();
+      if (Array.isArray(sgJson?.errors) && sgJson.errors.length > 0) {
+        sgErrorText = sgJson.errors.map((e: any) => e.message).join('; ');
+      } else if (sgJson?.message) {
+        sgErrorText = sgJson.message;
+      }
+    } catch {
+      const rawText = await sgResponse.text().catch(() => '');
+      if (rawText) sgErrorText = rawText;
+    }
+
+    console.warn(`[SendGrid Dispatcher Notice] HTTP ${sgResponse.status}: ${sgErrorText}`);
+
+    return res.status(sgResponse.status >= 400 && sgResponse.status < 600 ? sgResponse.status : 400).json({
+      status: 'failed',
+      provider: 'sendgrid',
+      error: `SendGrid Dispatch Error (${sgResponse.status}): ${sgErrorText}`,
+      sendgrid_notice: sgErrorText,
+    });
+  } catch (err: any) {
+    console.error('[SendGrid Dispatch Server Error]:', err);
+    return res.status(500).json({
+      status: 'failed',
+      provider: 'sendgrid',
+      error: err.message || 'Internal error dispatching email',
+    });
   }
-  console.log(`[Email Dispatcher] Mock sent email to ${to_email}: "${subject}"`);
-  return res.json({ status: 'sent', message: `Assessment email successfully dispatched to ${to_email}` });
 });
 
 // Public assessment creation and retrieval endpoints with scheduling
 app.post('/api/public/assessment/create', (req: Request, res: Response) => {
   const {
     role,
+    company_name = 'Hiring Organization',
+    hiring_manager = 'Talent Acquisition Team',
     candidate_id,
     candidate_name,
     candidate_email,
@@ -1303,16 +1644,18 @@ app.post('/api/public/assessment/create', (req: Request, res: Response) => {
     start_time = null,
     end_time = null,
     questions = [],
-  } = req.body;
+  } = req.body || {};
 
   const token = `cl_test_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
 
   const record = {
     token,
-    role,
-    candidate_id,
-    candidate_name,
-    candidate_email,
+    role: role || 'Software Developer',
+    company_name: String(company_name || 'Hiring Organization').trim(),
+    hiring_manager: String(hiring_manager || 'Talent Acquisition Team').trim(),
+    candidate_id: candidate_id || '',
+    candidate_name: candidate_name || 'Candidate',
+    candidate_email: candidate_email || '',
     duration_minutes: Number(duration_minutes) || 30,
     start_time: start_time || null,
     end_time: end_time || null,
@@ -1344,6 +1687,8 @@ app.get('/api/public/assessment/:token', (req: Request, res: Response) => {
   return res.json({
     token: record.token,
     role: record.role,
+    company_name: record.company_name || 'Hiring Organization',
+    hiring_manager: record.hiring_manager || 'Talent Acquisition Team',
     candidate_name: record.candidate_name,
     candidate_email: record.candidate_email,
     duration_minutes: record.duration_minutes,
@@ -1358,7 +1703,7 @@ app.get('/api/public/assessment/:token', (req: Request, res: Response) => {
 
 app.post('/api/public/assessment/:token/submit', (req: Request, res: Response) => {
   const token = String(req.params.token || '');
-  const { answers = {} } = req.body;
+  const { answers = {} } = req.body || {};
   const record = assessmentStore.get(token);
   if (!record) {
     return res.status(404).json({ error: 'Assessment record not found' });
@@ -1375,7 +1720,7 @@ app.post('/api/public/assessment/:token/submit', (req: Request, res: Response) =
     const selected = answers[qid] ?? answers[q.id];
     if (selected === undefined || selected === null || selected === '') {
       unanswered++;
-    } else if (String(selected).trim() === String(q.answer).trim()) {
+    } else if (String(selected).trim().toLowerCase() === String(q.answer).trim().toLowerCase()) {
       correct++;
     } else {
       wrong++;
@@ -1399,12 +1744,14 @@ app.post('/api/public/assessment/:token/submit', (req: Request, res: Response) =
   record.result = scoreResult;
   assessmentStore.set(token, record);
 
-  // Return completion confirmation without exposing score to candidate
+  // Return completion confirmation with score result for client receipt
   return res.json({
     status: 'success',
     recorded: true,
+    score: scoreResult,
     submitted_at: record.submitted_at,
     candidate_name: record.candidate_name,
+    candidate_id: record.candidate_id,
     role: record.role,
   });
 });
@@ -1415,6 +1762,7 @@ app.get('/api/recruiter/assessment-results', (_req: Request, res: Response) => {
   assessmentStore.forEach((record, token) => {
     results.push({
       id: token,
+      candidateId: record.candidate_id || '',
       candidateName: record.candidate_name || 'Candidate',
       email: record.candidate_email || '',
       role: record.role || 'Software Developer',

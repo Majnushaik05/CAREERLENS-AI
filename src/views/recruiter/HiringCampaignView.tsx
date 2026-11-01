@@ -30,9 +30,9 @@ export const HiringCampaignView: React.FC<HiringCampaignViewProps> = ({
       role: role.trim(),
       company: company.trim(),
       job_description: jobDescription.trim(),
-      passing_score: passingScore,
-      question_count: questionCount,
-      duration_minutes: durationMinutes,
+      passing_score: Number(passingScore) || 75,
+      question_count: Number(questionCount) || 10,
+      duration_minutes: Number(durationMinutes) || 30,
       created_at: campaign?.created_at || new Date().toISOString(),
     };
     onSaveCampaign(newCamp);
@@ -112,8 +112,11 @@ export const HiringCampaignView: React.FC<HiringCampaignViewProps> = ({
               type="number"
               min={40}
               max={95}
-              value={passingScore}
-              onChange={e => setPassingScore(parseInt(e.target.value, 10))}
+              value={Number.isNaN(Number(passingScore)) ? '' : passingScore}
+              onChange={e => {
+                const val = parseInt(e.target.value, 10);
+                setPassingScore(Number.isNaN(val) ? ('' as any) : val);
+              }}
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold"
             />
           </div>
@@ -126,8 +129,11 @@ export const HiringCampaignView: React.FC<HiringCampaignViewProps> = ({
               type="number"
               min={5}
               max={30}
-              value={questionCount}
-              onChange={e => setQuestionCount(parseInt(e.target.value, 10))}
+              value={Number.isNaN(Number(questionCount)) ? '' : questionCount}
+              onChange={e => {
+                const val = parseInt(e.target.value, 10);
+                setQuestionCount(Number.isNaN(val) ? ('' as any) : val);
+              }}
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold"
             />
           </div>
@@ -140,8 +146,11 @@ export const HiringCampaignView: React.FC<HiringCampaignViewProps> = ({
               type="number"
               min={15}
               max={90}
-              value={durationMinutes}
-              onChange={e => setDurationMinutes(parseInt(e.target.value, 10))}
+              value={Number.isNaN(Number(durationMinutes)) ? '' : durationMinutes}
+              onChange={e => {
+                const val = parseInt(e.target.value, 10);
+                setDurationMinutes(Number.isNaN(val) ? ('' as any) : val);
+              }}
               className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-semibold"
             />
           </div>

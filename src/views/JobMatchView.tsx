@@ -564,8 +564,11 @@ export const JobMatchView: React.FC<JobMatchViewProps> = ({ analysis }) => {
                       min={40}
                       max={95}
                       step={5}
-                      value={minMatchFilter}
-                      onChange={(e) => setMinMatchFilter(Number(e.target.value))}
+                      value={Number.isNaN(Number(minMatchFilter)) ? 60 : minMatchFilter}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setMinMatchFilter(Number.isNaN(val) ? 60 : val);
+                      }}
                       className="w-full mt-2 accent-blue-600 cursor-pointer"
                     />
                   </div>

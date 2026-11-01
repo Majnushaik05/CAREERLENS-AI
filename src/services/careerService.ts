@@ -489,20 +489,98 @@ export function extractPhone(text: string): string {
   return '';
 }
 
-export function extractName(text: string, filename = 'Candidate'): string {
-  const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 12)) {
-    if (line.includes('@') || /(?:\+?\d[\d .()\-]{8,}\d)/.test(line)) continue;
-    if (line.length > 70) continue;
-    const lower = line.toLowerCase();
-    if (['resume', 'curriculum vitae', 'objective', 'summary', 'skills'].some(t => lower.includes(t))) continue;
-    const words = line.split(/\s+/);
-    if (words.length >= 2 && words.length <= 5 && words.every(w => /^[A-Za-z.'-]+$/.test(w))) {
-      return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+/**
+ * Rigorously cleans candidate names so they NEVER end with "Resume", "CV", or literally be "Resume".
+ * Strips noise, extracts actual candidate names from text, filename, or email address.
+ */
+export function sanitizeCandidateName(
+  rawName?: string,
+  text?: string,
+  filename?: string,
+  email?: string
+): string {
+  let name = (rawName || '').trim();
+
+  // Strip file extensions if present in name
+  name = name.replace(/\.(?:pdf|docx?|txt|md)$/i, '').trim();
+
+  // Strip common noisy prefix/suffix tags like "- Resume", "_ Resume", "Resume", "CV", "Curriculum Vitae"
+  name = name
+    .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv|bio|profile|document|doc|preview)(?:\s*[-–—|/()_]+|\s*|\.[a-z]{2,4})*$/i, '')
+    .replace(/^(?:resume|curriculum\s+vitae|cv|profile)\s*(?:of|for|[-–—:|/()_])*\s*/i, '')
+    .replace(/^[-–—|/()_]+|[-–—|/()_]+$/g, '')
+    .trim();
+
+  // If name is clean and valid (at least 2 letters, not just "resume" or "candidate" or numbers)
+  if (name.length >= 2 && !/^(?:resume|cv|curriculum\s+vitae|document|candidate|applicant|null|undefined)$/i.test(name)) {
+    return name
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  // Fallback 1: Extract real name from text if available
+  if (text) {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    // Check explicit patterns like "Name: Shaik Majnu"
+    for (const line of lines.slice(0, 15)) {
+      const explicit = line.match(/(?:name|candidate|applicant)\s*[:\-–—]\s*([A-Za-z\s.'-]+)/i);
+      if (explicit && explicit[1]) {
+        const cleanedExplicit = sanitizeCandidateName(explicit[1]);
+        if (cleanedExplicit && cleanedExplicit !== 'Candidate') return cleanedExplicit;
+      }
+    }
+    // Check first 10 lines for 2-4 words that resemble a person's name
+    for (const line of lines.slice(0, 10)) {
+      if (line.includes('@') || /(?:\+?\d[\d .()\-]{8,}\d)/.test(line) || line.length > 50) continue;
+      // Remove the word resume or cv if it was attached like "Shaik Majnu - Resume"
+      const strippedLine = line
+        .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv)(?:[-–—|/()_]+|\s*)*$/i, '')
+        .replace(/^[#*\-•\s]+/, '')
+        .trim();
+      const words = strippedLine.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 && words.length <= 4 && words.every(w => /^[A-Za-z.'-]+$/.test(w))) {
+        const candidateName = words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        if (!/^(?:work experience|professional experience|technical skills|summary|profile|about me)$/i.test(candidateName)) {
+          return candidateName;
+        }
+      }
     }
   }
-  const stem = (filename || 'Candidate').replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
-  return stem ? stem.charAt(0).toUpperCase() + stem.slice(1) : 'Candidate';
+
+  // Fallback 2: Check filename (e.g. shaik_majnu_resume.pdf -> Shaik Majnu)
+  if (filename) {
+    const stem = filename
+      .replace(/\.[^/.]+$/, '')
+      .replace(/(?:^|\s*[-–—|/()_]+|\s+)(?:resume|curriculum\s+vitae|cv)(?:[-–—|/()_]+|\s*)*$/i, '')
+      .replace(/^[#*\-•_]+/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim();
+    if (stem.length >= 2 && !/^(?:resume|cv|document|candidate)$/i.test(stem)) {
+      return stem
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  // Fallback 3: Check email address username (e.g. shaikmajnu07@gmail.com -> Shaik Majnu)
+  if (email && email.includes('@')) {
+    const userPart = email.split('@')[0].replace(/\d+/g, '').replace(/[._-]+/g, ' ').trim();
+    if (userPart.length >= 2) {
+      return userPart
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+  }
+
+  return 'Candidate';
+}
+
+export function extractName(text: string, filename = 'Candidate'): string {
+  const email = extractEmail(text);
+  return sanitizeCandidateName('', text, filename, email);
 }
 
 export function analyzeResumeClientSide(text: string, filename = 'resume.txt', targetRole = ''): ResumeAnalysis {
@@ -1415,9 +1493,12 @@ export function screenBatchCandidatesClientSide(jobDescription: string, resumes:
     const profile = analyzeResumeClientSide(text, filename);
     const match = matchJobClientSide(text, jobDescription);
 
+    const candidateEmail = profile.email || r.email || '';
+    const cleanName = sanitizeCandidateName(r.name || profile.name, text, filename, candidateEmail);
+
     return {
       id: r.id || `cand_${Date.now()}_${index}`,
-      name: r.name || profile.name,
+      name: cleanName,
       email: profile.email || r.email || '',
       phone: profile.phone || r.phone || extractPhone(text),
       resume_score: profile.resume_score,

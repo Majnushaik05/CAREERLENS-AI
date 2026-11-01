@@ -444,8 +444,11 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
                   min={1}
                   max={100}
                   step={1}
-                  value={targetQuestionCount}
-                  onChange={(e) => setTargetQuestionCount(Number(e.target.value))}
+                  value={Number.isNaN(Number(targetQuestionCount)) ? 5 : targetQuestionCount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setTargetQuestionCount(Number.isNaN(val) ? 5 : val);
+                  }}
                   className="flex-1 accent-purple-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
                 />
                 <span className="text-[11px] font-bold text-slate-400">100</span>
@@ -453,10 +456,11 @@ export const MockInterviewView: React.FC<MockInterviewViewProps> = ({ analysis }
                   type="number"
                   min={1}
                   max={100}
-                  value={targetQuestionCount}
-                  onChange={(e) =>
-                    setTargetQuestionCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
-                  }
+                  value={Number.isNaN(Number(targetQuestionCount)) ? '' : targetQuestionCount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setTargetQuestionCount(Number.isNaN(val) ? ('' as any) : Math.max(1, Math.min(100, val)));
+                  }}
                   className="w-16 text-center text-xs font-bold py-1.5 border border-slate-200 rounded-xl focus:border-purple-500 outline-none"
                 />
               </div>

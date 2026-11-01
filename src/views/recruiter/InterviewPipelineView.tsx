@@ -1,5 +1,6 @@
 import React from 'react';
 import { Candidate } from '../../types';
+import { sanitizeCandidateName } from '../../services/careerService';
 import { Users, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface InterviewPipelineViewProps {
@@ -71,7 +72,8 @@ export const InterviewPipelineView: React.FC<InterviewPipelineViewProps> = ({
                     'bg-purple-100 text-purple-700 border-purple-200',
                     'bg-amber-100 text-amber-700 border-amber-200',
                   ][idx % 4];
-                  const initials = cand.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CD';
+                  const cleanName = sanitizeCandidateName(cand.name, cand.resume_text, undefined, cand.email || cand.extracted_email);
+                  const initials = cleanName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CD';
 
                   return (
                     <div
@@ -83,7 +85,7 @@ export const InterviewPipelineView: React.FC<InterviewPipelineViewProps> = ({
                           {initials}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-bold text-slate-900 text-xs truncate">{cand.name}</div>
+                          <div className="font-bold text-slate-900 text-xs truncate">{cleanName}</div>
                           <div className="text-[10px] text-slate-400 font-mono tabular-nums">
                             {cand.role_match}% Match
                           </div>
@@ -92,12 +94,23 @@ export const InterviewPipelineView: React.FC<InterviewPipelineViewProps> = ({
 
                       <div className="text-[11px] text-slate-500 truncate">{cand.email}</div>
 
+                      {cand.assessment_result && (
+                        <div className="flex items-center justify-between text-[11px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
+                          <span>Assessment:</span>
+                          <span className="font-mono">{cand.assessment_result.percentage}% ({cand.assessment_result.correct_count}/{cand.assessment_result.total})</span>
+                        </div>
+                      )}
+
                       {st.id !== 'Interview Scheduled' && (
                         <button
                           onClick={() => advanceCandidate(cand)}
-                          className="w-full mt-2 py-1.5 px-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-[11px] font-bold text-slate-700 border border-slate-200 transition flex items-center justify-center gap-1"
+                          className={`w-full mt-2 py-1.5 px-2 rounded-lg text-[11px] font-bold border transition flex items-center justify-center gap-1 ${
+                            st.id === 'Assessed'
+                              ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600 shadow-2xs'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
                         >
-                          <span>Move to Next Stage</span>
+                          <span>{st.id === 'Assessed' ? 'Schedule Interview' : 'Move to Next Stage'}</span>
                           <ArrowRight className="w-3 h-3" />
                         </button>
                       )}

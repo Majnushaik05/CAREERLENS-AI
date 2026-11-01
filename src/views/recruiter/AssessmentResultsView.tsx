@@ -28,12 +28,19 @@ interface AssessmentResult {
 const API_BASE_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 
 import { Candidate } from '../../types';
+import { sanitizeCandidateName } from '../../services/careerService';
 
 interface AssessmentResultsViewProps {
   candidates?: Candidate[];
+  onUpdateCandidate?: (candidateId: string, updates: Partial<Candidate>) => void;
+  onNavigate?: (tool: string) => void;
 }
 
-export const AssessmentResultsView: React.FC<AssessmentResultsViewProps> = ({ candidates = [] }) => {
+export const AssessmentResultsView: React.FC<AssessmentResultsViewProps> = ({
+  candidates = [],
+  onUpdateCandidate,
+  onNavigate,
+}) => {
   const [results, setResults] = useState<AssessmentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -530,6 +537,7 @@ export const AssessmentResultsView: React.FC<AssessmentResultsViewProps> = ({ ca
                     <th className="px-5 py-4 font-medium">Performance</th>
                     <th className="px-5 py-4 font-medium">Status</th>
                     <th className="px-5 py-4 font-medium">Submitted</th>
+                    <th className="px-5 py-4 font-medium text-right">Pipeline Action</th>
                   </tr>
                 </thead>
 
@@ -541,7 +549,7 @@ export const AssessmentResultsView: React.FC<AssessmentResultsViewProps> = ({ ca
                     >
                       <td className="px-5 py-4">
                         <p className="font-medium text-slate-100">
-                          {result.candidateName}
+                          {sanitizeCandidateName(result.candidateName, undefined, undefined, result.email)}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           {result.email || "Email unavailable"}
@@ -607,6 +615,30 @@ export const AssessmentResultsView: React.FC<AssessmentResultsViewProps> = ({ ca
 
                       <td className="px-5 py-4 text-xs text-slate-400">
                         {formatDate(result.submittedAt)}
+                      </td>
+
+                      <td className="px-5 py-4 text-right">
+                        {result.status === 'Completed' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matched = candidates.find(
+                                c => (result.email && c.email.toLowerCase() === result.email.toLowerCase()) || c.name === result.candidateName
+                              );
+                              if (matched && onUpdateCandidate) {
+                                onUpdateCandidate(matched.id, { status: 'Interview Scheduled' });
+                              }
+                              if (onNavigate) {
+                                onNavigate('Interview Pipeline');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-purple-700 cursor-pointer"
+                          >
+                            <span>Schedule Interview</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-500">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

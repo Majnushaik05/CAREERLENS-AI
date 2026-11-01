@@ -253,8 +253,11 @@ export const PreInterviewAssessmentView: React.FC = () => {
                   min={1}
                   max={100}
                   step={1}
-                  value={questionCount}
-                  onChange={(e) => setQuestionCount(Number(e.target.value))}
+                  value={Number.isNaN(Number(questionCount)) ? 10 : questionCount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setQuestionCount(Number.isNaN(val) ? 10 : val);
+                  }}
                   className="flex-1 accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
                 />
                 <span className="text-[11px] font-bold text-slate-400">100</span>
@@ -262,10 +265,11 @@ export const PreInterviewAssessmentView: React.FC = () => {
                   type="number"
                   min={1}
                   max={100}
-                  value={questionCount}
-                  onChange={(e) =>
-                    setQuestionCount(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
-                  }
+                  value={Number.isNaN(Number(questionCount)) ? '' : questionCount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setQuestionCount(Number.isNaN(val) ? ('' as any) : Math.max(1, Math.min(100, val)));
+                  }}
                   className="w-16 text-center text-xs font-bold py-1.5 border border-slate-200 rounded-xl focus:border-blue-500 outline-none"
                 />
               </div>

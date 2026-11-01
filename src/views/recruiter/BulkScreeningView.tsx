@@ -4,7 +4,7 @@ import mammoth from 'mammoth/mammoth.browser';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 import { Candidate, HiringCampaign } from '../../types';
-import { extractResumeSkills, screenBatchCandidatesClientSide, extractEmail, extractPhone } from '../../services/careerService';
+import { extractResumeSkills, screenBatchCandidatesClientSide, extractEmail, extractPhone, sanitizeCandidateName } from '../../services/careerService';
 import {
   UploadCloud,
   Users,
@@ -58,15 +58,9 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper to extract candidate name from raw text
-  const parseCandidateName = (text: string, fallback: string): string => {
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    for (const line of lines.slice(0, 5)) {
-      if (line.length > 2 && line.length < 40 && !line.includes('@') && !line.includes('http') && !line.toLowerCase().includes('resume')) {
-        return line.replace(/^[#*\-•\s]+/, '').trim();
-      }
-    }
-    return fallback.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+  // Helper to extract candidate name from raw text and filename
+  const parseCandidateName = (text: string, fallback: string, email?: string): string => {
+    return sanitizeCandidateName('', text, fallback, email);
   };
 
   // Helper to extract email
@@ -116,8 +110,8 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
       const file = files[i];
       try {
         const textContent = await readFileAsText(file);
-        const name = parseCandidateName(textContent, file.name);
         const email = parseCandidateEmail(textContent);
+        const name = parseCandidateName(textContent, file.name, email);
         const phone = parseCandidatePhone(textContent);
         const identityKeys = getCandidateKeys(email, phone, textContent);
 
@@ -238,8 +232,8 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     let dupCount = 0;
 
     rawBlocks.forEach((block, idx) => {
-      const name = parseCandidateName(block, `Candidate ${stagedFiles.length + idx + 1}`);
       const email = parseCandidateEmail(block);
+      const name = parseCandidateName(block, `Candidate ${stagedFiles.length + idx + 1}`, email);
       const phone = parseCandidatePhone(block);
       const identityKeys = getCandidateKeys(email, phone, block);
 
@@ -300,12 +294,19 @@ export const BulkScreeningView: React.FC<BulkScreeningViewProps> = ({
     // overwriting a previously screened candidate or counting them twice.
     const mergeUniqueCandidates = (incoming: Candidate[]): Candidate[] => {
       const seen = new Set<string>(candidates.flatMap(getCandidateKeysFromCandidate));
-      const merged: Candidate[] = [...candidates];
+      const merged: Candidate[] = candidates.map(c => ({
+        ...c,
+        name: sanitizeCandidateName(c.name, c.resume_text, undefined, c.email || c.extracted_email),
+      }));
       for (const candidate of incoming) {
-        const keys = getCandidateKeysFromCandidate(candidate);
+        const cleanCand: Candidate = {
+          ...candidate,
+          name: sanitizeCandidateName(candidate.name, candidate.resume_text, undefined, candidate.email || candidate.extracted_email),
+        };
+        const keys = getCandidateKeysFromCandidate(cleanCand);
         if (keys.some(key => seen.has(key))) continue;
         keys.forEach(key => seen.add(key));
-        merged.push(candidate);
+        merged.push(cleanCand);
       }
       return merged.sort((a, b) => b.role_match - a.role_match);
     };
