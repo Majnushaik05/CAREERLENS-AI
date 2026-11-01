@@ -166,108 +166,87 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
   }, [selectedCandidateId, selectedCandidate?.resume_text, selectedCandidate?.email]);
 
   const handleGenerateLink = async () => {
-    if (!selectedCandidate) return;
-    setLoading(true);
-    setStatusMsg(null);
+    if (!selectedCandidate) {
+      setStatusMsg({ type: 'warning', text: 'Select a candidate before generating an assessment.' });
+      return;
+    }
+    if (!targetRole.trim()) {
+      setStatusMsg({ type: 'warning', text: 'Enter or select a target role.' });
+      return;
+    }
 
-    const activeEmail = recipientEmail.trim() || selectedCandidate.email;
+    setLoading(true);
+    setGeneratedLink('');
+    setGeneratedToken('');
+    setStatusMsg(null);
+    const activeEmail = recipientEmail.trim() || selectedCandidate.email || '';
 
     try {
-      // Generate role-specific question bank
       const genRes = await fetch('/api/assessment/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role: targetRole,
-          question_count: questionCount,
-        }),
+        body: JSON.stringify({ role: targetRole.trim(), question_count: questionCount }),
       });
-
-      let questions = [];
-      const genContentType = genRes.headers.get('content-type') || '';
-      if (genRes.ok && genContentType.includes('application/json')) {
-        const genData = await genRes.json();
-        questions = genData.questions || [];
+      const genData = await genRes.json().catch(() => ({}));
+      if (!genRes.ok) throw new Error(genData.error || 'Could not generate assessment questions.');
+      if (!Array.isArray(genData.questions) || genData.questions.length === 0) {
+        throw new Error('The assessment generator returned no questions. Please try again.');
       }
 
-      // Create scheduled test record in server authoritative store
       const pubRes = await fetch('/api/public/assessment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: targetRole,
+          role: targetRole.trim(),
           candidate_id: selectedCandidate.id,
           candidate_name: selectedCandidate.name,
           candidate_email: activeEmail,
           duration_minutes: durationMinutes,
           start_time: startTime ? new Date(startTime).toISOString() : null,
           end_time: endTime ? new Date(endTime).toISOString() : null,
-          questions,
+          questions: genData.questions,
         }),
       });
+      const pubData = await pubRes.json().catch(() => ({}));
+      if (!pubRes.ok) throw new Error(pubData.error || 'Could not create the candidate assessment link.');
+      if (!pubData.token || !pubData.link) throw new Error('The server did not return a valid assessment token and link.');
 
-      const pubContentType = pubRes.headers.get('content-type') || '';
-      if (pubRes.ok && pubContentType.includes('application/json')) {
-        const pubData = await pubRes.json();
-        const fullUrl = `${window.location.origin}${pubData.link}`;
-        setGeneratedLink(fullUrl);
-        setGeneratedToken(pubData.token);
-
-        onUpdateCandidate(selectedCandidate.id, {
-          email: activeEmail,
-          extracted_email: emailExtractedFromResume ? activeEmail : selectedCandidate.extracted_email,
-          email_source: emailExtractedFromResume ? 'resume' : 'manual',
-          assessment_status: 'Sent',
-          test_token: pubData.token,
-        });
-
-        setStatusMsg({
-          type: 'success',
-          text: `Assessment generated for ${selectedCandidate.name} (${targetRole})!`,
-          details: `Role: ${targetRole} · Duration: ${durationMinutes} min · Questions: ${questionCount}`,
-        });
-        setLoading(false);
-        return;
-      }
-    } catch {
-      // client fallback token
+      const fullUrl = new URL(pubData.link, window.location.origin).toString();
+      setGeneratedLink(fullUrl);
+      setGeneratedToken(pubData.token);
+      onUpdateCandidate(selectedCandidate.id, {
+        email: activeEmail,
+        extracted_email: emailExtractedFromResume ? activeEmail : selectedCandidate.extracted_email,
+        email_source: emailExtractedFromResume ? 'resume' : 'manual',
+        assessment_status: 'Not Sent',
+        test_token: pubData.token,
+      });
+      setStatusMsg({
+        type: 'success',
+        text: `Assessment link generated for ${selectedCandidate.name}.`,
+        details: `Role: ${targetRole} · Duration: ${durationMinutes} min · Questions: ${genData.questions.length}. The candidate has not been emailed yet.`,
+      });
+    } catch (error: any) {
+      setStatusMsg({ type: 'warning', text: error?.message || 'Assessment generation failed. Please try again.' });
+    } finally {
+      setLoading(false);
     }
-
-    // Client fallback token
-    const token = `cl_test_${Math.random().toString(36).substring(2, 9)}${Date.now().toString(36)}`;
-    const fullUrl = `${window.location.origin}/?assessment=${token}`;
-    setGeneratedLink(fullUrl);
-    setGeneratedToken(token);
-
-    onUpdateCandidate(selectedCandidate.id, {
-      email: activeEmail,
-      assessment_status: 'Sent',
-      test_token: token,
-    });
-
-    setStatusMsg({
-      type: 'success',
-      text: `Assessment token generated for ${selectedCandidate.name}!`,
-      details: `Role: ${targetRole} · Duration: ${durationMinutes} min`,
-    });
-    setLoading(false);
   };
 
   const handleDispatchEmail = async () => {
-    if (!selectedCandidate || !generatedLink) return;
-    const targetEmail = recipientEmail.trim() || selectedCandidate.email;
-
-    if (!targetEmail || targetEmail.includes('example.com')) {
-      setStatusMsg({
-        type: 'warning',
-        text: 'Please confirm a valid candidate email before dispatching via SendGrid.',
-      });
+    if (!selectedCandidate || !generatedLink || !generatedToken) {
+      setStatusMsg({ type: 'warning', text: 'Generate a valid assessment link before sending the invitation.' });
+      return;
+    }
+    const targetEmail = (recipientEmail.trim() || selectedCandidate.email || '').trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(targetEmail) || /@(example\.com|applied\.net)$/i.test(targetEmail)) {
+      setStatusMsg({ type: 'warning', text: 'Enter a valid candidate email address before dispatching.' });
       return;
     }
 
     setEmailing(true);
     setStatusMsg(null);
-
     try {
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -286,8 +265,11 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
           custom_from_email: customFromEmail.trim() || undefined,
         }),
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Email service returned HTTP ${res.status}.`);
+      if (data.status !== 'sent' || data.provider !== 'sendgrid') {
+        throw new Error(data.sendgrid_notice || 'SendGrid has not confirmed delivery. Configure a valid SendGrid API key and verified sender, then try again.');
+      }
 
       onUpdateCandidate(selectedCandidate.id, {
         email: targetEmail,
@@ -296,31 +278,13 @@ export const AssessmentDispatcherView: React.FC<AssessmentDispatcherViewProps> =
         last_dispatched_at: new Date().toISOString(),
         sendgrid_message_id: data.message_id || undefined,
       });
-
-      if (data.provider === 'sendgrid') {
-        setStatusMsg({
-          type: 'success',
-          text: `Invitation delivered to ${targetEmail} via SendGrid API!`,
-          details: `Message ID: ${data.message_id || 'sg_verified'} · Role: ${targetRole}`,
-        });
-      } else if (data.sendgrid_notice) {
-        setStatusMsg({
-          type: 'info',
-          text: `Assessment token generated & ready for ${targetEmail}!`,
-          details: `SendGrid Notice: ${data.sendgrid_notice} (Direct candidate link active below)`,
-        });
-      } else {
-        setStatusMsg({
-          type: 'success',
-          text: `Assessment invitation logged and dispatched to ${targetEmail}!`,
-          details: `Target: ${targetRole} · Test link ready for candidate`,
-        });
-      }
-    } catch {
       setStatusMsg({
-        type: 'warning',
-        text: `Email dispatched to local queue for ${targetEmail}. Direct test link is active.`,
+        type: 'success',
+        text: `Invitation accepted by SendGrid for ${targetEmail}.`,
+        details: `Message ID: ${data.message_id || 'Accepted'} · Role: ${targetRole}.`,
       });
+    } catch (error: any) {
+      setStatusMsg({ type: 'warning', text: error?.message || 'Email dispatch failed. The candidate status was not changed.' });
     } finally {
       setEmailing(false);
     }
