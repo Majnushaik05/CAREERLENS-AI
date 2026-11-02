@@ -1763,7 +1763,7 @@ app.get('/api/recruiter/assessment-results', (_req: Request, res: Response) => {
     results.push({
       id: token,
       candidateId: record.candidate_id || '',
-      candidateName: record.candidate_name || 'Candidate',
+      candidateName: sanitizeCandidateName(record.candidate_name, undefined, undefined, record.candidate_email),
       email: record.candidate_email || '',
       role: record.role || 'Software Developer',
       score: record.result ? record.result.percentage : null,
@@ -1774,7 +1774,7 @@ app.get('/api/recruiter/assessment-results', (_req: Request, res: Response) => {
       durationMinutes: record.duration_minutes || 30,
     });
   });
-  return res.json({ results });
+  return res.json(results);
 });
 
 // Recruiter state persistence

@@ -43,7 +43,7 @@ export const PublicAssessmentView: React.FC<PublicAssessmentViewProps> = ({ toke
   const [submitted, setSubmitted] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [submitting, setSubmitting] = useState(false);
-  const [navFilter, setNavFilter] = useState<'all' | 'unanswered' | 'flagged'>('all');
+  const [navFilter, setNavFilter] = useState<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
 
   // Real-time tick every second
   useEffect(() => {

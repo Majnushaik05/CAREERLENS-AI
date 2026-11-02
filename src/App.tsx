@@ -210,7 +210,10 @@ export const App: React.FC = () => {
       <PublicAssessmentView
         token={assessmentToken}
         onExit={() => {
-          window.location.search = '';
+          setAssessmentToken(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('assessment');
+          window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
         }}
       />
     );
